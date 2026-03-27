@@ -22,10 +22,10 @@ const SetupForm: React.FC<SetupFormProps> = ({ onStart }) => {
       const cleaned = await generateTopicStream(company, jobTitle, (chunk) =>
         setTopic((prev) => prev + chunk)
       );
-      setTopic(cleaned);
+      setTopic(cleaned || "请手动输入题目");
     } catch (error) {
       console.error(error);
-      alert("生成失败，请重试");
+      setTopic("题目生成失败，请手动输入。");
     } finally {
       setIsGenerating(false);
     }
