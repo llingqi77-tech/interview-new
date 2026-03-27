@@ -627,7 +627,7 @@ const DiscussionPanel: React.FC<DiscussionPanelProps> = ({ state, onFinish }) =>
         <div className="bg-white border-b p-4 shadow-sm z-10">
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600">
+              <div className="p-2 bg-blue-0 rounded-xl text-blue-00">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
                 </svg>
@@ -638,7 +638,7 @@ const DiscussionPanel: React.FC<DiscussionPanelProps> = ({ state, onFinish }) =>
                 </h2>
                 <div className="flex items-center gap-2">
                   <div className="h-1 w-32 bg-slate-100 rounded-full overflow-hidden mt-1">
-                    <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${(round / MAX_ROUNDS) * 100}%` }}></div>
+                    <div className="h-full bg-blue-00 transition-all duration-500" style={{ width: `${(round / MAX_ROUNDS) * 100}%` }}></div>
                   </div>
                   <span className="text-[10px] text-slate-400 font-bold uppercase mt-1">进度</span>
                 </div>
@@ -646,7 +646,7 @@ const DiscussionPanel: React.FC<DiscussionPanelProps> = ({ state, onFinish }) =>
             </div>
             <button 
               onClick={() => onFinish(messages)} 
-              className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black hover:bg-indigo-600 shadow-lg shadow-slate-200 transition-all active:scale-95"
+              className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black hover:bg-blue-00 shadow-lg shadow-slate-200 transition-all active:scale-95"
             >
               提交评估
             </button>
@@ -656,8 +656,8 @@ const DiscussionPanel: React.FC<DiscussionPanelProps> = ({ state, onFinish }) =>
             {CHARACTERS.map(c => (
               <CharacterCard key={c.id} character={c} isActive={activeCharId === c.id} isTyping={activeCharId === c.id && isTyping} />
             ))}
-            <div className="flex flex-col items-center p-3 rounded-xl bg-indigo-100 shadow-sm border-2 border-indigo-300 min-w-[85px]">
-               <img src={USER_INFO.avatar} alt={USER_INFO.name} className="w-14 h-14 rounded-full border-2 border-indigo-300" />
+            <div className="flex flex-col items-center p-3 rounded-xl bg-blue-00 shadow-sm border-2 border-blue-00 min-w-[85px]">
+               <img src={USER_INFO.avatar} alt={USER_INFO.name} className="w-14 h-14 rounded-full border-2 border-blue-00" />
                <span className="mt-2 text-xs font-semibold text-slate-700">{USER_INFO.displayName}</span>
             </div>
           </div>
@@ -672,7 +672,7 @@ const DiscussionPanel: React.FC<DiscussionPanelProps> = ({ state, onFinish }) =>
                 <div className={`max-w-[80%] rounded-2xl px-5 py-4 shadow-sm ${isUser ? 'bg-slate-900 text-white rounded-tr-none' : 'bg-white text-slate-800 rounded-tl-none border border-slate-200/50'}`}>
                   {!isUser && (
                     <div className="flex items-center mb-2 gap-2">
-                      <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{char?.name.split(' (')[0]}</span>
+                      <span className="text-[10px] font-black text-blue-00 uppercase tracking-widest">{char?.name.split(' (')[0]}</span>
                       <span className={`text-[8px] px-1.5 py-0.5 rounded-full text-white font-bold ${char?.color} shadow-sm`}>
                         {char?.role === 'AGGRESSIVE' ? '核心' : char?.role === 'STRUCTURED' ? '枢纽' : '补位'}
                       </span>
@@ -701,7 +701,7 @@ const DiscussionPanel: React.FC<DiscussionPanelProps> = ({ state, onFinish }) =>
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
                 placeholder={isListening ? "正在记录您的完整发言..." : "在此输入您的核心观点..."}
-                className={`w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-2xl pl-5 pr-14 py-4 text-sm text-slate-900 resize-none h-24 transition-all outline-none ${isListening ? 'ring-4 ring-indigo-100 border-indigo-400' : ''}`}
+                className={`w-full bg-slate-50 border border-slate-200 focus:border-blue-00 focus:bg-white rounded-2xl pl-5 pr-14 py-4 text-sm text-slate-900 resize-none h-24 transition-all outline-none ${isListening ? 'ring-4 ring-blue-00 border-blue-00' : ''}`}
               />
               <button 
                 onClick={toggleListening}
@@ -715,7 +715,7 @@ const DiscussionPanel: React.FC<DiscussionPanelProps> = ({ state, onFinish }) =>
             <button 
               onClick={handleSendMessage} 
               disabled={!inputValue.trim()} 
-              className="bg-slate-900 text-white w-16 h-24 rounded-2xl flex flex-col items-center justify-center hover:bg-indigo-600 disabled:opacity-30 transition-all shadow-xl active:scale-95 shrink-0"
+              className="bg-slate-900 text-white w-16 h-24 rounded-2xl flex flex-col items-center justify-center hover:bg-blue-00 disabled:opacity-30 transition-all shadow-xl active:scale-95 shrink-0"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -736,7 +736,7 @@ const DiscussionPanel: React.FC<DiscussionPanelProps> = ({ state, onFinish }) =>
       <div className={`absolute top-0 right-0 h-full w-80 bg-white border-l border-slate-200 shadow-2xl z-20 transition-transform duration-500 ease-in-out transform ${showTopic ? 'translate-x-0' : 'translate-x-full'}`}>
         <button 
           onClick={() => setShowTopic(!showTopic)}
-          className={`absolute left-[-32px] top-1/2 -translate-y-1/2 w-8 h-20 bg-white border border-r-0 border-slate-200 rounded-l-2xl flex items-center justify-center shadow-[-8px_0_15px_-3px_rgba(0,0,0,0.05)] hover:text-indigo-600 transition-colors z-30`}
+          className={`absolute left-[-32px] top-1/2 -translate-y-1/2 w-8 h-20 bg-white border border-r-0 border-slate-200 rounded-l-2xl flex items-center justify-center shadow-[-8px_0_15px_-3px_rgba(0,0,0,0.05)] hover:text-blue-00 transition-colors z-30`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform duration-500 ${showTopic ? 'rotate-0' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
@@ -759,7 +759,7 @@ const DiscussionPanel: React.FC<DiscussionPanelProps> = ({ state, onFinish }) =>
               const isTitle = idx % 2 !== 0;
               return isTitle ? (
                 <div key={idx} className="flex items-center gap-2 pt-4">
-                  <div className="w-1.5 h-4 bg-indigo-500 rounded-full"></div>
+                  <div className="w-1.5 h-4 bg-blue-00 rounded-full"></div>
                   <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">{chunk}</h4>
                 </div>
               ) : (
@@ -770,15 +770,15 @@ const DiscussionPanel: React.FC<DiscussionPanelProps> = ({ state, onFinish }) =>
             })}
           </div>
 
-          <div className="mt-8 p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100">
+          <div className="mt-8 p-5 bg-blue-0/50 rounded-2xl border border-blue-00">
              <div className="flex items-center gap-2 mb-2">
                <span className="relative flex h-2 w-2">
-                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                 <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-00 opacity-75"></span>
+                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-00"></span>
                </span>
-               <span className="text-[10px] font-black text-indigo-700 uppercase tracking-wider">实时贴士</span>
+               <span className="text-[10px] font-black text-blue-00 uppercase tracking-wider">实时贴士</span>
              </div>
-             <p className="text-[11px] text-indigo-600 font-medium leading-relaxed">
+             <p className="text-[11px] text-blue-00 font-medium leading-relaxed">
                {round < 18 ? "当前阶段重点是贡献具体想法，争取在方案中留下你的逻辑印记。" : "讨论已接近尾声，请关注是否有人已经做出了总结，若没有，你可以尝试引导。"}
              </p>
           </div>

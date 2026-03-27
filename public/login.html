@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - LGD Simulator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; 
+      background: linear-gradient(135deg, #0066ff 0%, #0052cc 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container { 
+      background: white; 
+      border-radius: 16px; 
+      padding: 48px; 
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 { text-align: center; color: #1a1a1a; margin-bottom: 8px; font-size: 28px; }
+    .subtitle { text-align: center; color: #666; margin-bottom: 32px; font-size: 14px; }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 8px; color: #333; font-weight: 500; font-size: 14px; }
+    input { 
+      width: 100%; 
+      padding: 14px 16px; 
+      border: 2px solid #e5e7eb; 
+      border-radius: 8px; 
+      font-size: 15px;
+      transition: border-color 0.3s;
+    }
+    input:focus { outline: none; border-color: #0066ff; }
+    .btn { 
+      width: 100%; 
+      padding: 14px; 
+      background: #0066ff; 
+      color: white; 
+      border: none; 
+      border-radius: 8px; 
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s;
+      margin-top: 8px;
+    }
+    .btn:hover { background: #0052cc; }
+    .btn-secondary { 
+      background: #f3f4f6; 
+      color: #333;
+      margin-top: 12px;
+    }
+    .btn-secondary:hover { background: #e5e7eb; }
+    .error { color: #dc2626; text-align: center; margin-top: 12px; font-size: 14px; }
+    .success { color: #059669; text-align: center; margin-top: 12px; font-size: 14px; }
+    .toggle { text-align: center; margin-top: 24px; color: #666; font-size: 14px; }
+    .toggle a { color: #0066ff; cursor: pointer; text-decoration: none; font-weight: 500; }
+    .logo { text-align: center; margin-bottom: 24px; }
+    .logo-text { font-size: 24px; font-weight: 700; color: #0066ff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <span class="logo-text">LGD Simulator</span>
+    </div>
+    <h1>登录</h1>
+    <p class="subtitle">登录后即可开始群面练习</p>
+    
+    <div id="loginForm">
+      <div class="form-group">
+        <label>用户名</label>
+        <input type="text" id="loginUsername" placeholder="请输入用户名">
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input type="password" id="loginPassword" placeholder="请输入密码">
+      </div>
+      <button class="btn" onclick="login()">登录</button>
+      <div id="loginError" class="error" style="display:none;"></div>
+      <div class="toggle">
+        还没有账号？<a onclick="showRegister()">立即注册</a>
+      </div>
+    </div>
+    
+    <div id="registerForm" style="display:none;">
+      <div class="form-group">
+        <label>用户名</label>
+        <input type="text" id="regUsername" placeholder="请输入用户名">
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input type="password" id="regPassword" placeholder="请输入密码（至少6位）">
+      </div>
+      <button class="btn" onclick="register()">注册</button>
+      <div id="regError" class="error" style="display:none;"></div>
+      <div class="toggle">
+        已有账号？<a onclick="showLogin()">立即登录</a>
+      </div>
+    </div>
+    
+    <button class="btn btn-secondary" onclick="skipLogin()">跳过登录，直接体验</button>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    
+    function showRegister() {
+      document.getElementById('loginForm').style.display = 'none';
+      document.getElementById('registerForm').style.display = 'block';
+      document.getElementById('loginError').style.display = 'none';
+    }
+    
+    function showLogin() {
+      document.getElementById('loginForm').style.display = 'block';
+      document.getElementById('registerForm').style.display = 'none';
+      document.getElementById('regError').style.display = 'none';
+    }
+    
+    async function login() {
+      const username = document.getElementById('loginUsername').value;
+      const password = document.getElementById('loginPassword').value;
+      
+      if (!username || !password) {
+        showError('login', '请填写用户名和密码');
+        return;
+      }
+      
+      try {
+        const res = await fetch(API_BASE + '/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'login', username, password })
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+          window.location.href = '/';
+        } else {
+          showError('login', data.error);
+        }
+      } catch (e) {
+        showError('login', '登录失败，请稍后重试');
+      }
+    }
+    
+    async function register() {
+      const username = document.getElementById('regUsername').value;
+      const password = document.getElementById('regPassword').value;
+      
+      if (!username || !password) {
+        showError('register', '请填写用户名和密码');
+        return;
+      }
+      
+      if (password.length < 6) {
+        showError('register', '密码长度至少6位');
+        return;
+      }
+      
+      try {
+        const res = await fetch(API_BASE + '/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'register', username, password })
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok) {
+          showError('login', '注册成功，请登录');
+          showLogin();
+        } else {
+          showError('register', data.error);
+        }
+      } catch (e) {
+        showError('register', '注册失败，请稍后重试');
+      }
+    }
+    
+    function showError(type, msg) {
+      const el = document.getElementById(type + 'Error');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+    
+    function skipLogin() {
+      window.location.href = '/';
+    }
+    
+    // 检查是否已登录
+    const user = localStorage.getItem('user');
+    if (user) {
+      window.location.href = '/';
+    }
+  </script>
+</body>
+</html>

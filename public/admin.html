@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的记录 - LGD Simulator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f7fa; }
+    .header { background: white; border-bottom: 1px solid #e5e5e5; padding: 12px 24px; }
+    .header-inner { max-width: 1000px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+    .logo { font-size: 18px; font-weight: 700; color: #0066ff; }
+    .nav { display: flex; gap: 16px; align-items: center; }
+    .nav a { color: #0066ff; text-decoration: none; font-size: 14px; }
+    .nav button { background: none; border: none; color: #666; cursor: pointer; font-size: 14px; }
+    .container { max-width: 1000px; margin: 40px auto; padding: 0 20px; }
+    h1 { font-size: 24px; margin-bottom: 24px; color: #1a1a1a; }
+    .empty { text-align: center; padding: 60px; color: #666; }
+    .card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .card-title { font-size: 18px; font-weight: 600; color: #1a1a1a; }
+    .card-meta { font-size: 14px; color: #666; margin-top: 4px; }
+    .status { padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500; background: #d1fae5; color: #065f46; }
+    .topic { background: #e6f0ff; padding: 12px; border-radius: 6px; font-size: 14px; color: #3730a3; margin-bottom: 12px; }
+    .feedback { background: #fef3c7; padding: 16px; border-radius: 6px; }
+    .score { font-size: 20px; font-weight: 600; color: #059669; }
+    .btn { padding: 8px 16px; background: #0066ff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; text-decoration: none; }
+    .btn-outline { background: white; border: 1px solid #e5e5e5; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-inner">
+      <div class="logo">LGD Simulator</div>
+      <div class="nav">
+        <a href="/app.html">开始练习</a>
+        <span id="userName"></span>
+        <button onclick="logout()">退出</button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="container">
+    <h1>我的记录</h1>
+    <div id="content">加载中...</div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    
+    function getUser() {
+      try { return JSON.parse(localStorage.getItem('user')); } catch(e) { return null; }
+    }
+    
+    function logout() {
+      localStorage.removeItem('user');
+      window.location.href = '/';
+    }
+    
+    async function loadData() {
+      const user = getUser();
+      if (!user) {
+        window.location.href = '/';
+        return;
+      }
+      
+      document.getElementById('userName').textContent = '欢迎, ' + user.username;
+      
+      try {
+        const [sessionsRes, messagesRes, feedbackRes] = await Promise.all([
+          fetch(API_BASE + '/session?user_id=' + user.id),
+          fetch(API_BASE + '/message'),
+          fetch(API_BASE + '/feedback')
+        ]);
+        
+        const sessions = await sessionsRes.json();
+        const messages = await messagesRes.json();
+        const feedbacks = await feedbackRes.json();
+        
+        const userSessions = sessions.filter(s => s.user_id == user.id);
+        
+        if (userSessions.length === 0) {
+          document.getElementById('content').innerHTML = '<div class="empty">暂无记录</div>';
+          return;
+        }
+        
+        document.getElementById('content').innerHTML = userSessions.reverse().map(session => {
+          const feedback = feedbacks.find(f => f.session_id === session.id);
+          
+          return `
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">${session.company} - ${session.job_title}</div>
+                  <div class="card-meta">${new Date(session.created_at).toLocaleString()}</div>
+                </div>
+                <span class="status">已完成</span>
+              </div>
+              <div class="topic"><strong>题目:</strong> ${session.topic.substring(0, 100)}...</div>
+              ${feedback ? `
+                <div class="feedback">
+                  <div class="score">综合得分: ${feedback.overall_score}分</div>
+                  <div style="margin-top:8px;font-size:14px;"><strong>发言时机:</strong> ${feedback.timing}</div>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        document.getElementById('content').innerHTML = '<div class="empty">加载失败</div>';
+      }
+    }
+    
+    loadData();
+  </script>
+</body>
+</html>

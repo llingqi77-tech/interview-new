@@ -1,17 +1,403 @@
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LGD Simulator - Group Interview Pro</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script>
-        window.process = window.process || { env: {} };
-    </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LGD Simulator - 群面模拟器</title>
+  <script>
+    // 移除了登录功能，直接进入
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; 
+      background: #ffffff;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+    
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid #e5e5e5;
+      z-index: 1000;
+    }
+    .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo {
+      font-size: 22px;
+      font-weight: 700;
+      color: #0066ff;
+      cursor: pointer;
+    }
+    .logo span { color: #1a1a1a; font-weight: 400; }
+    .header-right { display: flex; align-items: center; gap: 24px; }
+    .header-link { 
+      color: #666; 
+      text-decoration: none; 
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .header-link:hover { color: #0066ff; }
+    .btn {
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+      display: inline-block;
+      border: none;
+      font-family: inherit;
+    }
+    .btn-primary {
+      background: #0066ff;
+      color: white;
+    }
+    .btn-primary:hover { background: #0052cc; }
+    .btn-outline {
+      background: transparent;
+      color: #1a1a1a;
+      border: 1px solid #e5e5e5;
+    }
+    .btn-outline:hover { border-color: #0066ff; color: #0066ff; }
+    
+    .hero {
+      padding: 180px 40px 120px;
+      text-align: center;
+      background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+    }
+    .hero-inner { max-width: 900px; margin: 0 auto; }
+    .hero h1 {
+      font-size: 52px;
+      font-weight: 700;
+      color: #1a1a1a;
+      line-height: 1.15;
+      margin-bottom: 24px;
+      letter-spacing: -1.5px;
+    }
+    .hero h1 span { color: #0066ff; }
+    .hero p {
+      font-size: 20px;
+      color: #666;
+      margin-bottom: 48px;
+      line-height: 1.8;
+    }
+    .hero-btns { display: flex; gap: 16px; justify-content: center; }
+    .hero .btn { padding: 16px 40px; font-size: 16px; }
+    
+    .stats {
+      background: #0066ff;
+      padding: 48px 40px;
+    }
+    .stats-inner {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-around;
+    }
+    .stat-item { text-align: center; }
+    .stat-num { font-size: 42px; font-weight: 700; color: white; }
+    .stat-label { font-size: 14px; color: rgba(255,255,255,0.8); margin-top: 4px; }
+    
+    .features { padding: 100px 40px; background: #f8fafc; }
+    .features-inner { max-width: 1200px; margin: 0 auto; }
+    .section-title {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+    .section-title h2 {
+      font-size: 36px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 12px;
+      letter-spacing: -0.5px;
+    }
+    .section-title p { color: #666; font-size: 16px; }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+    }
+    .feature-card {
+      background: white;
+      padding: 36px;
+      border-radius: 16px;
+      border: 1px solid #e5e5e5;
+      transition: all 0.3s;
+    }
+    .feature-card:hover {
+      box-shadow: 0 12px 40px rgba(0,0,0,0.1);
+      transform: translateY(-4px);
+    }
+    .feature-icon {
+      width: 56px;
+      height: 56px;
+      background: #e6f0ff;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+      font-size: 28px;
+    }
+    .feature-card h3 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #1a1a1a;
+    }
+    .feature-card p { color: #666; font-size: 14px; line-height: 1.7; }
+    
+    .how-it-works { padding: 100px 40px; }
+    .how-it-works-inner { max-width: 1000px; margin: 0 auto; }
+    .steps {
+      display: flex;
+      gap: 48px;
+      justify-content: center;
+    }
+    .step {
+      text-align: center;
+      flex: 1;
+      max-width: 280px;
+      position: relative;
+    }
+    .step::after {
+      content: '→';
+      position: absolute;
+      right: -28px;
+      top: 40px;
+      font-size: 24px;
+      color: #ccc;
+    }
+    .step:last-child::after { display: none; }
+    .step-num {
+      width: 56px;
+      height: 56px;
+      background: #0066ff;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 24px;
+      margin: 0 auto 24px;
+    }
+    .step h3 { font-size: 20px; margin-bottom: 8px; font-weight: 600; }
+    .step p { color: #666; font-size: 14px; }
+    
+    .cta {
+      padding: 100px 40px;
+      background: linear-gradient(135deg, #0066ff 0%, #0052cc 100%);
+      text-align: center;
+    }
+    .cta h2 {
+      font-size: 36px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 16px;
+    }
+    .cta p { color: rgba(255,255,255,0.85); margin-bottom: 40px; font-size: 18px; }
+    .cta .btn{
+      background: white;
+      color: #0066ff;
+      padding: 18px 48px;
+      font-size: 18px;
+    }
+    .cta .btn:hover { background: #f5f5f5; }
+    
+    .footer {
+      padding: 32px;
+      text-align: center;
+      color: #999;
+      font-size: 14px;
+      border-top: 1px solid #e5e5e5;
+      background: #fafafa;
+    }
+    
+    /* Modal */
+    .modal-overlay { 
+      position: fixed; 
+      top: 0; 
+      left: 0; 
+      right: 0; 
+      bottom: 0; 
+      background: rgba(0,0,0,0.5); 
+      display: none; 
+      align-items: center; 
+      justify-content: center; 
+      z-index: 2000; 
+    }
+    .modal-overlay.active { display: flex; }
+    .modal { 
+      background: white; 
+      border-radius: 16px; 
+      padding: 48px; 
+      width: 100%; 
+      max-width: 420px; 
+      box-shadow: 0 24px 80px rgba(0,0,0,0.2); 
+    }
+    .modal h2 { font-size: 28px; font-weight: 600; margin-bottom: 8px; text-align: center; }
+    .modal-subtitle { text-align: center; color: #666; margin-bottom: 32px; font-size: 14px; }
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 500; color: #333; }
+    .form-group input { 
+      width: 100%; 
+      padding: 14px 16px; 
+      border: 2px solid #e5e5e5; 
+      border-radius: 8px; 
+      font-size: 15px; 
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus { outline: none; border-color: #0066ff; }
+    .modal .btn { width: 100%; padding: 14px; margin-top: 8px; }
+    .modal-toggle { text-align: center; margin-top: 24px; font-size: 14px; color: #666; }
+    .modal-toggle a { color: #0066ff; cursor: pointer; text-decoration: none; font-weight: 500; }
+    .error-msg { color: #dc2626; font-size: 14px; text-align: center; margin-top: 12px; display: none; }
+    
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 32px; }
+      .features-grid { grid-template-columns: 1fr; }
+      .steps { flex-direction: column; align-items: center; }
+      .step::after { display: none; }
+      .stats-inner { flex-direction: column; gap: 32px; }
+      .header-inner { padding: 12px 20px; }
+      .hero, .features, .how-it-works, .cta { padding: 60px 20px; }
+    }
+  </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
-    <div id="root"></div>
-    <script type="module" src="index.tsx"></script>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">LGD <span>Simulator</span></div>
+      <div class="header-right" id="headerRight">
+        <a class="header-link" onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})">功能介绍</a>
+        <a class="header-link" onclick="document.getElementById('how-it-works').scrollIntoView({behavior:'smooth'})">使用流程</a>
+        <a href="/app.html" class="btn btn-primary">立即体验</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-inner">
+      <h1>AI 群面模拟器<br><span>助力求职面试</span></h1>
+      <p>基于真实群面场景的AI模拟练习平台，还原无领导小组讨论全流程，<br>帮助求职者高效提升面试技巧，自信应对真实面试。</p>
+      <div class="hero-btns">
+        <a href="/app.html" class="btn btn-primary">开始免费练习</a>
+        <button class="btn btn-outline" onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})">了解更多</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="stats">
+    <div class="stats-inner">
+      <div class="stat-item">
+        <div class="stat-num">10,000+</div>
+        <div class="stat-label">模拟练习次数</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">95%</div>
+        <div class="stat-label">用户满意度</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">500+</div>
+        <div class="stat-label">真实企业题库</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="features" id="features">
+    <div class="features-inner">
+      <div class="section-title">
+        <h2>核心功能</h2>
+        <p>全方位模拟真实群面场景</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🎯</div>
+          <h3>真实题目场景</h3>
+          <p>覆盖互联网、金融、咨询等行业常见群面题型，商业案例、策略设计等问题类型，还原真实面试难度。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🤖</div>
+          <h3>AI 角色扮演</h3>
+          <p>3个风格各异的AI面试者，模拟控场型、逻辑型、细节型等不同角色特征，营造真实讨论氛围。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>智能评估反馈</h3>
+          <p>从发言时机、结构化贡献、团队协作等多维度提供详细评估报告和针对性改进建议。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">💬</div>
+          <h3>实时对话互动</h3>
+          <p>与AI进行实时对话交互，模拟真实的讨论节奏和互动氛围，提升临场应变能力。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📝</div>
+          <h3>历史记录回顾</h3>
+          <p>可查看历史练习记录，分析自己的成长曲线和薄弱环节，持续优化面试表现。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">⏱️</div>
+          <h3>灵活时间安排</h3>
+          <p>随时随地开始练习，不受时间和地点限制，充分利用碎片时间高效备考。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="how-it-works" id="how-it-works">
+    <div class="how-it-works-inner">
+      <div class="section-title">
+        <h2>使用流程</h2>
+        <p>简单三步，快速开始</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <h3>输入信息</h3>
+          <p>填写目标公司和岗位，AI自动生成针对性群面题目</p>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <h3>开始模拟</h3>
+          <p>与AI进行群面讨论，展现你的观点和分析能力</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <h3>获取反馈</h3>
+          <p>获得详细的评估报告，了解优势和改进方向</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <h2>准备好迎接挑战了吗？</h2>
+    <p>立即开始你的群面模拟练习</p>
+    <a href="/app.html" class="btn">免费开始</a>
+  </section>
+
+  <footer class="footer">
+    <p>© 2024 LGD Simulator. All rights reserved.</p>
+  </footer>
+
+  <script>
+    // 移除了登录/注册功能，直接跳转到练习页面
+  </script>
 </body>
 </html>
