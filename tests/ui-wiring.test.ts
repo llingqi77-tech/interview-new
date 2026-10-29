@@ -31,7 +31,8 @@ test('TC-05: AI 发言超时被打断后由调度器立即安排发言（interru
   const controller = readController();
   assert.ok(/evaluateInterrupt\(this\.deps\.roles, this\.turn, now\)/.test(controller), '未评估打断规则');
   assert.ok(/registerInterrupt\(this\.turn, interrupt\.targetId, interrupt\.interrupterId\)/.test(controller), '打断未登记（罚分/加成）');
-  assert.ok(/event_type: 'interrupt'/.test(controller), '打断事件未记录');
+  assert.ok(/interruptEvent\(/.test(controller), '打断未走统一事件构造');
+  assert.ok(/event_type: 'interrupt'/.test(read('src/session/transcript.ts')), '打断事件未记录');
   // 用户被点名 5 秒未回应 → 其他 AI 接话
   assert.ok(/evaluateUserCalledNoResponse\(this\.deps\.roles, this\.turn, now[,\)]/.test(controller), '未实现点名未响应接话');
 });

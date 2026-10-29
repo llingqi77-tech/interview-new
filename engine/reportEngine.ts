@@ -1,5 +1,17 @@
 import type { Evidence, GameEvent, Message, ReportV15, VisualStats } from '../types';
-import { isVisualDataSufficient, scoreVisual, visualMetrics, VISUAL_FULL, VISUAL_MIN_ROWS } from './visionMetrics.ts';
+import { speechMsFromCharCount } from './speechRate.ts';
+import { VISUAL_FULL } from './visionMetrics.ts';
+import {
+  clampScore,
+  contentScore,
+  formatSpeakBuckets,
+  recoveryScore,
+  stressScore,
+  teamworkScore,
+  visualDimension,
+  visualScoringEnabled,
+  voiceScore,
+} from './reportDimensions.ts';
 
 /**
  * 面后报告 v1.5 规则引擎（PRD 4.1.7 / 7.4 / 附录 C）
@@ -58,12 +70,12 @@ export interface RuleMetrics {
   timeDistribution: { bucketStartMs: number; userChars: number }[];
 }
 
-/** 发言时长估算：优先 endMs-startMs，否则按 2.8 字/秒 */
+/** 发言时长估算：优先 endMs-startMs，否则按统一口径（SPEECH_CHARS_PER_SECOND） */
 export function estimateSpeakMs(msg: Message): number {
   if (typeof msg.startMs === 'number' && typeof msg.endMs === 'number' && msg.endMs > msg.startMs) {
     return msg.endMs - msg.startMs;
   }
-  return (msg.content.length / 2.8) * 1000;
+  return speechMsFromCharCount(msg.content.length);
 }
 
 function msgStartMs(msg: Message, sessionStartAt: number): number {
@@ -196,140 +208,92 @@ export interface LlmSemanticScores {
   extraEvidence?: Evidence[];
 }
 
-function clamp(x: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, x));
-}
-
-/** 线性阈值映射：value >= full 满分，<= empty 0 分 */
-function thresholdScore(value: number, full: number, empty: number): number {
-  if (value >= full) return 100;
-  if (value <= empty) return 0;
-  return Math.round(((value - empty) / (full - empty)) * 100);
-}
-
-/**
- * 组装报告 v1.5。
- * 规则引擎实算指标 + LLM 语义分（可选，缺失时用规则近似并标注）。
- */
 export function buildRuleReport(input: ReportInput, llm?: LlmSemanticScores, visualStats?: VisualStats): ReportV15 {
-  const m = computeRuleMetrics(input);
+  const metrics = computeRuleMetrics(input);
   const evidence = buildEvidencePool(input);
-  const contentEvidence = evidence.filter((e) => e.dimension_hint === 'content').slice(0, 5);
-  const stressEvidence = evidence.filter((e) => e.dimension_hint === 'stress').slice(0, 3);
-  const teamworkEvidence = evidence.filter((e) => e.dimension_hint === 'teamwork').slice(0, 3);
-  const voiceEvidence = evidence.slice(0, 3);
+  const visualEnabled = visualScoringEnabled(visualStats);
+  const weights = visualEnabled ? FINAL_WEIGHTS : TRANSITION_WEIGHTS;
+  const recovered = recoveryScore(metrics);
+  const content = contentScore(metrics, llm, weights.content);
+  const voice = voiceScore(metrics, recovered, weights.voice);
+  const stress = stressScore(evidence.filter((item) => item.dimension_hint === 'stress').length, llm, recovered, weights.stress);
+  const teamwork = teamworkScore(metrics, llm, weights.teamwork);
+  const visual = visualDimension(visualStats, visualEnabled, weights.visual);
+  return assembleReport({
+    metrics,
+    evidence,
+    llm,
+    weights,
+    scores: { content, voice, stress, teamwork },
+    visual,
+    visualStats: visualEnabled ? visualStats : undefined,
+  });
+}
 
-  // ---- 视觉维度门控（D4）：摄像头开启且有效采样 ≥ 30 秒才计入综合分；
-  // 拒绝授权 / 跳过 / 中途关闭 / 数据不足 → 走过渡权重，视觉 not_enabled（现状路径）
-  const visualEnabled = visualStats !== undefined && isVisualDataSufficient(visualStats.validRows);
-  const W = visualEnabled ? FINAL_WEIGHTS : TRANSITION_WEIGHTS;
-
-  // ---- 内容贡献（max 40）：观点数量 25% / 结构清晰度 25% / 推动讨论 25% / 回应质量 25%
-  const opinionsScore = thresholdScore(m.userMessageCount, 5, 1);
-  const structureRule = thresholdScore(m.structureMarkerCount, 3, 0);
-  const structureScore = llm?.structureScore ?? structureRule;
-  const pushScore = thresholdScore(m.pushDiscussionCount, 3, 0);
-  const responseQuality = llm?.responseQuality ?? thresholdScore(m.responseCount, 3, 0);
-  const contentRaw = opinionsScore * 0.25 + structureScore * 0.25 + pushScore * 0.25 + responseQuality * 0.25;
-  const content = Math.round((contentRaw / 100) * W.content);
-
-  // ---- 语音表现（max 25）：语速 20% / 填充词 20% / 停顿合理性 20% / 打断后恢复 20% / 音量稳定性 20%（P1）
-  const rateScore = m.speakingRateWpm > 0 ? thresholdScore(m.speakingRateWpm, 140, 100) : 60; // 100-140 WPM 满分
-  const fillerScore = thresholdScore(5 - m.fillerRatio, 5, 0); // <5% 满分
-  const pauseScore = m.userMessageCount >= 3 ? 70 : 50; // 文字版无停顿数据，规则近似
-  const recoveryScore = m.interruptRecoveryMs === null ? 70 : thresholdScore(3000 - m.interruptRecoveryMs, 3000, 0); // <3s 满分
-  const volumeScore = 60; // P1（音量稳定性）
-  const voiceRaw = rateScore * 0.2 + fillerScore * 0.2 + pauseScore * 0.2 + recoveryScore * 0.2 + volumeScore * 0.2;
-  const voice = Math.round((voiceRaw / 100) * W.voice);
-
-  // ---- 抗压/冲突（max 20）：被质疑后回应质量 50% / 打断后恢复速度 30% / 冲突处理方式 20%
-  const stressQuality = llm?.stressResponseQuality ?? (stressEvidence.length > 0 ? 60 : 55);
-  const conflictHandling = llm?.conflictHandling ?? 60;
-  const stressRaw = stressQuality * 0.5 + recoveryScore * 0.3 + conflictHandling * 0.2;
-  const stress = Math.round((stressRaw / 100) * W.stress);
-
-  // ---- 团队协作（max 15，M3 过渡权重 TRANSITION_WEIGHTS）：回应他人次数 40% / 支持补充他人 30% / 协调分歧 30%
-  const respondScore = thresholdScore(m.responseCount, 3, 0);
-  const supportScore = llm?.supportOthers ?? respondScore;
-  const coordinateScore = llm?.coordinateOthers ?? 55;
-  const teamworkRaw = respondScore * 0.4 + supportScore * 0.3 + coordinateScore * 0.3;
-  const teamwork = Math.round((teamworkRaw / 100) * W.teamwork);
-
-  // ---- 视觉表现（PRD C.2，max 20）：眼神接触 40% / 情绪稳定性 30% / 头部姿态 20% / 参与度 10%
-  const visual = visualEnabled
-    ? {
-        score: Math.round((visualStats!.rawScore / 100) * W.visual),
-        max: W.visual,
-        status: 'enabled' as const,
-        evidence: visualStats!.evidence,
-        metrics: visualMetrics(visualStats!),
-      }
-    : {
-        score: 0,
-        max: W.visual,
-        status: 'not_enabled' as const,
-        evidence: [] as Evidence[],
-        note:
-          visualStats !== undefined
-            ? `视觉数据不足（有效采样 ${visualStats.validRows} 秒 < ${VISUAL_MIN_ROWS} 秒），未参与评分`
-            : '视觉维度未开启（摄像头分析未开启或已关闭），权重已按其余四维归一',
-      };
-
-  const overall = clamp(content + voice + stress + teamwork + visual.score, 0, 100);
-
-  const suggestions = buildSuggestions({ m, content, voice, stress, teamwork, visual: visualEnabled ? visualStats : undefined });
-
+function assembleReport(parts: {
+  metrics: RuleMetrics;
+  evidence: Evidence[];
+  llm?: LlmSemanticScores;
+  weights: typeof FINAL_WEIGHTS | typeof TRANSITION_WEIGHTS;
+  scores: { content: number; voice: number; stress: number; teamwork: number };
+  visual: ReportV15['dimensions']['visual'];
+  visualStats?: VisualStats;
+}): ReportV15 {
+  const { metrics, evidence, llm, weights, scores, visual, visualStats } = parts;
+  const contentEvidence = evidence.filter((item) => item.dimension_hint === 'content').slice(0, 5);
+  const suggestions = buildSuggestions({
+    m: metrics,
+    content: scores.content,
+    voice: scores.voice,
+    stress: scores.stress,
+    teamwork: scores.teamwork,
+    visual: visualStats,
+  });
   return {
     session_id: null,
-    overall_score: overall,
+    overall_score: clampScore(scores.content + scores.voice + scores.stress + scores.teamwork + visual.score),
     dimensions: {
       content: {
-        score: content,
-        max: W.content,
-        evidence: [...contentEvidence, ...(llm?.extraEvidence ?? []).filter((e) => e.dimension_hint === 'content')].slice(0, 6),
+        score: scores.content,
+        max: weights.content,
+        evidence: [...contentEvidence, ...(llm?.extraEvidence ?? []).filter((item) => item.dimension_hint === 'content')].slice(0, 6),
         metrics: {
-          观点数量: m.userMessageCount,
-          结构标记次数: m.structureMarkerCount,
-          推动讨论次数: m.pushDiscussionCount,
-          回应次数: m.responseCount,
+          观点数量: metrics.userMessageCount,
+          结构标记次数: metrics.structureMarkerCount,
+          推动讨论次数: metrics.pushDiscussionCount,
+          回应次数: metrics.responseCount,
         },
       },
       voice: {
-        score: voice,
-        max: W.voice,
-        evidence: voiceEvidence,
+        score: scores.voice,
+        max: weights.voice,
+        evidence: evidence.slice(0, 3),
         metrics: {
-          话语权占比: m.voiceShareByTime,
-          填充词占比: m.fillerRatio,
-          语速WPM: m.speakingRateWpm || 'N/A（文字版无 ASR 时间戳）',
-          被打断次数: m.interruptedCount,
-          平均恢复时长ms: m.interruptRecoveryMs ?? 'N/A',
-          发言时段分布:
-            m.timeDistribution.length > 0
-              ? m.timeDistribution
-                  .slice(0, 5)
-                  .map((b) => `${Math.round(b.bucketStartMs / 60000)}min/${b.userChars}字`)
-                  .join(' ')
-              : 'N/A',
+          话语权占比: metrics.voiceShareByTime,
+          填充词占比: metrics.fillerRatio,
+          语速WPM: metrics.speakingRateWpm || 'N/A（文字版无 ASR 时间戳）',
+          被打断次数: metrics.interruptedCount,
+          平均恢复时长ms: metrics.interruptRecoveryMs ?? 'N/A',
+          发言时段分布: formatSpeakBuckets(metrics),
         },
         note: '语音副语言特征需 ASR 时间戳（M2），当前为文字版规则近似',
       },
       visual,
       stress: {
-        score: stress,
-        max: W.stress,
-        evidence: stressEvidence,
+        score: scores.stress,
+        max: weights.stress,
+        evidence: evidence.filter((item) => item.dimension_hint === 'stress').slice(0, 3),
         metrics: {
-          被打断次数: m.interruptedCount,
-          平均恢复时长ms: m.interruptRecoveryMs ?? 'N/A',
+          被打断次数: metrics.interruptedCount,
+          平均恢复时长ms: metrics.interruptRecoveryMs ?? 'N/A',
         },
       },
       teamwork: {
-        score: teamwork,
-        max: W.teamwork,
-        evidence: teamworkEvidence,
+        score: scores.teamwork,
+        max: weights.teamwork,
+        evidence: evidence.filter((item) => item.dimension_hint === 'teamwork').slice(0, 3),
         metrics: {
-          回应他人次数: m.responseCount,
+          回应他人次数: metrics.responseCount,
         },
       },
     },
