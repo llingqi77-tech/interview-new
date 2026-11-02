@@ -1,11 +1,12 @@
 name: Build and Deploy to GitHub Pages
 
 on:
-  # 推送到 main 分支时触发
-  push:
-    branches:
-      - main
-  # 允许手动触发
+  # 2026-10-30 停用自动触发。
+  # 原因：GitHub Pages 只能承载 dist/ 静态产物，api/ 后端不存在，
+  # 每次 push 都会自动发布一个"页面能打开、AI 功能全报错"的残缺站点，
+  # 且 *.github.io 在国内解析质量同样不可控。
+  # 公网正式落点是 Vercel + 自有域名（见 DEPLOY_VERCEL.md）；
+  # Pages 仅保留手动触发，作为纯 UI 预览的备用入口，不再作为发布目标。
   workflow_dispatch:
 
 # 设置 GITHUB_TOKEN 的权限，允许部署到 GitHub Pages

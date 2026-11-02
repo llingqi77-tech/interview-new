@@ -1,0 +1,60 @@
+name: CI
+
+# 门禁流水线：只校验，不发布。发布由 Vercel 的 Git 集成负责（见 DEPLOY_VERCEL.md）。
+# 若切换到"CI 通过才发布"的模式 B，改名为 deploy-vercel.yml 并替换为文档中的代码。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# 同一分支上后一次推送取消前一次，避免排队积压
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: 校验（密钥扫描 / 类型 / 单测 / 构建 / 体积）
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '10.28.0'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # npm run verify = check:secrets + typecheck + test + build + check:bundle
+      # 拆开跑，是为了在 Actions UI 里一眼看出卡在哪一步，而不是一坨红。
+      - name: 密钥泄漏扫描
+        run: pnpm run check:secrets
+
+      - name: 类型检查
+        run: pnpm run typecheck
+
+      - name: 单元测试
+        run: pnpm run test
+
+      - name: 生产构建（含函数数量检查）
+        run: pnpm run build
+
+      - name: 产物体积预算
+        run: pnpm run check:bundle

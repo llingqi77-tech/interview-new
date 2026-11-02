@@ -28,7 +28,9 @@ export function getPool(): Pool {
       connectionString,
       ...(sslDisabled ? {} : { ssl: { rejectUnauthorized: false } }),
       // serverless 每函数实例各持一个 pool：max 压低 + 建议生产挂 pgbouncer（transaction 模式）
-      max: 3,
+      // 单容器部署时整进程只有一个 pool，max:3 会让并发 >3 的查询 5s 后直接超时，
+      // 用 DB_POOL_MAX 覆盖（ECS 容器建议 10；serverless 保持 3 并挂连接池代理）
+      max: Number(process.env.DB_POOL_MAX ?? 3),
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 5_000,
     });

@@ -1,0 +1,151 @@
+name: Deploy to ECS
+
+# 全自动发布：push main → 构建镜像 → 推仓库 → SSH 到 ECS 拉新镜像 → 健康检查 → 失败自动回滚
+#
+# 需要配置的 GitHub Secrets：
+#   SSH_HOST          ECS 公网 IP 或域名
+#   SSH_USER          部署用户（bootstrap.sh 创建的 deploy）
+#   SSH_PORT          SSH 端口，默认 22
+#   SSH_PRIVATE_KEY   CI 专用私钥（对应公钥已追加到 ECS 的 authorized_keys）
+#   ACR_USERNAME      — 仅当用阿里云 ACR 时需要
+#   ACR_PASSWORD      — 同上
+#
+# 需要配置的 GitHub Variables（Settings → Variables）：
+#   REGISTRY          镜像仓库前缀，默认 ghcr.io；用 ACR 时填 registry.cn-hangzhou.aliyuncs.com
+#   PUBLIC_URL        线上地址，用于发布后从外部验证（可选）
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 发布必须串行：两个并发部署同时改 deploy.env 会把容器状态搅乱
+concurrency:
+  group: deploy-ecs
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ${{ vars.REGISTRY || 'ghcr.io' }}
+  # ECS 在大陆同地域时用 ACR 的 VPC 端点拉取（不走公网）；未设置时与 REGISTRY 相同
+  PULL_REGISTRY: ${{ vars.PULL_REGISTRY || vars.REGISTRY || 'ghcr.io' }}
+  APP_DIR: /opt/interview
+
+jobs:
+  build:
+    name: 构建并推送镜像
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      image_pull: ${{ steps.meta.outputs.image_pull }}
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 计算镜像坐标
+        id: meta
+        run: |
+          # GHCR 只接受全小写仓库名
+          repo=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "image=${REGISTRY}/${repo}" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          # 推送走 REGISTRY（公网），ECS 拉取走 PULL_REGISTRY（可指向 ACR VPC 端点）
+          echo "image_pull=${PULL_REGISTRY}/${repo}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 登录 GHCR
+        if: env.REGISTRY == 'ghcr.io'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 登录阿里云 ACR
+        if: env.REGISTRY != 'ghcr.io'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build & Push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # latest 只作人工排查用；部署永远钉 sha 标签，回滚才能精确复现
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.image }}:latest
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: 部署到 ECS
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: ${{ vars.PUBLIC_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 准备 SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          # accept-new：首次连接记录指纹，之后指纹变了直接失败，不会静默连到别的机器
+          ssh-keyscan -p "${{ secrets.SSH_PORT || 22 }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host ecs
+            HostName ${{ secrets.SSH_HOST }}
+            User ${{ secrets.SSH_USER }}
+            Port ${{ secrets.SSH_PORT || 22 }}
+            IdentityFile ~/.ssh/id_deploy
+            StrictHostKeyChecking accept-new
+            ServerAliveInterval 30
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: 同步编排文件
+        run: |
+          # compose/Caddyfile/部署脚本以仓库为准，避免机器上留着手改过的旧版本
+          scp docker-compose.yml Caddyfile ecs:$APP_DIR/
+          scp scripts/ecs/deploy.sh ecs:$APP_DIR/deploy.sh
+          ssh ecs "chmod +x $APP_DIR/deploy.sh"
+
+      - name: 执行部署（含健康检查与回滚）
+        run: |
+          ssh ecs "$APP_DIR/deploy.sh ${{ needs.build.outputs.image_pull }}:${{ needs.build.outputs.tag }} ${{ github.sha }}"
+
+      - name: 外部验证
+        if: vars.PUBLIC_URL != ''
+        run: |
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${{ vars.PUBLIC_URL }}/healthz" || true)
+            if [ "$code" = "200" ]; then
+              echo "✅ ${{ vars.PUBLIC_URL }}/healthz → 200"
+              exit 0
+            fi
+            echo "第 $i 次探测：$code，3 秒后重试"
+            sleep 3
+          done
+          echo "❌ 外部验证失败，回滚"
+          ssh ecs "$APP_DIR/deploy.sh \$(cat $APP_DIR/.previous_image) rollback"
+          exit 1
+
+      - name: 失败时拉取线上日志
+        if: failure()
+        run: |
+          ssh ecs "cd $APP_DIR && docker compose --env-file deploy.env logs --tail=200 app caddy" || true
