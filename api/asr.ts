@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { isStepFunConfigured, STEPFUN_CONFIG } from './_lib/stepfun.ts';
+import { issueToken, isStepFunConfigured, STEPFUN_CONFIG } from './_lib/stepfun.ts';
 import { createSseWriter, pipeUpstreamSse } from './_lib/sse.ts';
 import { checkRateLimit } from './_lib/ratelimit.ts';
-import { getClientIp } from './_lib/http.ts';
+import { getClientIp, isTokenRoute } from './_lib/http.ts';
 
 /**
  * /api/asr —— StepFun ASR 服务端代理（PRD 4.1.6 / G.2 / C9）
@@ -24,6 +24,25 @@ interface AsrFormat {
 }
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
+  // /api/asr-token 兼容路由（原独立函数已并入本文件，见 vercel.json rewrite）
+  if (isTokenRoute(request, 'asr')) {
+    if (request.method !== 'POST') {
+      return response.status(405).json({ error: 'Method not allowed' });
+    }
+    if (!isStepFunConfigured()) {
+      return response.status(503).json({
+        error: 'STEPFUN_NOT_CONFIGURED',
+        message: '服务端未配置 STEPFUN_API_KEY，语音识别不可用，将降级为浏览器语音/手动输入',
+        fallback: 'webspeech',
+      });
+    }
+    const issued = issueToken('asr');
+    return response.status(200).json({
+      ...issued,
+      endpoint: STEPFUN_CONFIG.asr.endpoint,
+      model: STEPFUN_CONFIG.asr.model,
+    });
+  }
   if (request.method !== 'POST') {
     return response.status(405).json({ error: 'Method not allowed' });
   }

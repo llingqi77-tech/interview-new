@@ -7,12 +7,14 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/check-functions.mjs && vite build",
+    "start": "node server/prod-api.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"tests/*.test.ts\"",
     "check:bundle": "node scripts/check-bundle.mjs",
     "check:functions": "node scripts/check-functions.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
+    "pay:doctor": "node scripts/pay-doctor.mjs",
     "verify": "npm run check:secrets && npm run typecheck && npm run test && npm run build && npm run check:bundle",
     "test:e2e": "node scripts/e2e-api.mjs",
     "test:e2e:onchain": "bash scripts/e2e-onchain.sh"
@@ -30,7 +32,8 @@
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "viem": "^2.57.7",
-    "wagmi": "^3.7.7"
+    "wagmi": "^3.7.7",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
@@ -42,7 +45,6 @@
     "tailwindcss": "^4.1.18",
     "typescript": "~5.8.2",
     "vercel": "^50.33.0",
-    "vite": "^6.2.0",
-    "ws": "^8.22.0"
+    "vite": "^6.2.0"
   }
 }
