@@ -3,6 +3,7 @@ import { USER_INFO } from '../../data/userInfo.ts';
 import {
   tickPhase,
   advancePhaseByKeyword,
+  skipAiIntro,
   currentPhase,
   currentOpeningSpeaker,
   phaseRemainingMs,
@@ -40,6 +41,11 @@ import { SaveQueue } from './saveQueue.ts';
 import { collectVoiceSpeakers } from './voiceRoster.ts';
 import { buildAiMessage, buildUserMessage, interruptEvent, speakGrantEvent, stageChangeEvent } from './transcript.ts';
 import { buildReplyParams } from './replyRequest.ts';
+import { scriptToMessage, shortConfirm } from '../../engine/phaseScripts.ts';
+import { transitionKey } from '../../engine/phaseEngine.ts';
+import { beepCuesFor } from '../../engine/beep.ts';
+import { playBeep } from '../../services/beepPlayer.ts';
+import { detectSummaryIntent, SUMMARY_BONUS } from '../../engine/summaryIntent.ts';
 import type { SpeakerKind } from './speakerKind.ts';
 import {
   AI_PLAYING_RETRY_MS,
@@ -136,6 +142,12 @@ export class SessionController {
   private disposed = false;
   /** 已做阶段开场白标记 */
   private stageEnterAnnounced = new Set<string>();
+  /** 上一个已播报的阶段（用于取引导语 key） */
+  private lastAnnouncedPhase: PhaseId | null = null;
+  /** 真人是否主动争取了总结（报告加分） */
+  private summaryByUser = false;
+  /** 开场白是否已播报 */
+  private openingAnnounced = false;
   private lastHostNudgeAt = 0;
   private userStream: MediaStream | null = null;
   private visionClient: VisionClient | null = null;
@@ -339,6 +351,31 @@ export class SessionController {
 
   // ---------- 设备 ----------
 
+  /**
+   * 开场白（PRD 4.：进入房间后开场白：自我介绍、说明本场题目与阶段及总时长）
+   * 由 UI 在挂载后调用一次，避免 init() 产生副作用影响测试。
+   */
+  announceOpening(): void {
+    if (this.openingAnnounced) return;
+    this.openingAnnounced = true;
+    const first = currentPhase(this.phaseRef, this.format, this.phaseConfig);
+    this.stageEnterAnnounced.add(first.id);
+    this.lastAnnouncedPhase = first.id;
+    this.announceStage('OPEN', first.id);
+  }
+
+  /** 一键跳过所有 AI 候选人的自我介绍（PRD 5.） */
+  skipAiIntro(): void {
+    if (this.format !== 'lgd') return;
+    const res = skipAiIntro(this.phaseRef, Date.now(), this.format, this.phaseConfig, this.sessionStartAt);
+    if (!res.changed) return;
+    this.phaseRef = res.state;
+    this.store.set({ phase: res.state });
+    this.pushEvents(res.events);
+    const next = currentPhase(this.phaseRef, this.format, this.phaseConfig);
+    this.onStageEnter(next.id);
+  }
+
   toggleMic(): void {
     const next = !this.snap.micOn;
     this.store.set({ micOn: next });
@@ -441,9 +478,55 @@ export class SessionController {
     }
   }
 
+  /**
+   * 阶段切换播报（PRD 4.）：固定引导语 TTS + 字幕气泡 + 倒计时提示音。
+   * 由主持面试官（群面）/ 主面试官（单面）说出，不重复长篇说明。
+   */
+  private announceStage(from: PhaseId | 'OPEN', to: PhaseId | 'FINISHED', short = false): void {
+    if (this.disposed) return;
+    const key = transitionKey(this.format, from, to);
+    const speaker = this.format === 'panel' ? this.deps.roles[0] : HOST_CARD;
+    const speakerName = speaker?.name ?? (this.format === 'panel' ? '主面试官' : '主持面试官');
+    const atMs = this.elapsedAt(Date.now());
+    const msg = scriptToMessage({
+      format: this.format,
+      transition: key,
+      atMs,
+      speakerName,
+      speakerId: speaker?.id ?? 'host',
+      short,
+    });
+    this.store.set({ messages: [...this.snap.messages, msg] });
+    this.pushEvents([
+      {
+        event_type: 'stage_change',
+        actor: 'system',
+        target: String(to),
+        timestamp_ms: atMs,
+        metadata: { reason: 'announce', beep: true, phaseLabel: msg.content.slice(0, 12), script: key },
+      },
+    ]);
+    // 提示音：阶段开始 + 结束前 1 分钟 + 到点
+    const def = currentPhase(this.phaseRef, this.format, this.phaseConfig);
+    for (const cue of beepCuesFor({ durationMs: def.durationMs })) {
+      if (cue.kind === 'start') playBeep('start');
+    }
+    if (speaker) {
+      void this.voice?.speak(msg.content, {
+        voiceId: speaker.voice.voice_id,
+        rate: speaker.voice.rate,
+        emotion: 'neutral',
+        instruction: '沉稳清晰，主持人语气',
+      });
+    }
+  }
+
   private onStageEnter(phaseId: PhaseId): void {
     if (this.finished || this.stageEnterAnnounced.has(phaseId)) return;
     this.stageEnterAnnounced.add(phaseId);
+    const prev = this.lastAnnouncedPhase;
+    this.lastAnnouncedPhase = phaseId;
+    this.announceStage(prev ?? 'OPEN', phaseId);
     if (this.format === 'lgd') {
       if (phaseId === 'FREE_DISCUSSION' || phaseId === 'SUMMARY') {
         void this.triggerAITurn(HOST_CARD, { speakerKind: 'host', force: true });
@@ -684,6 +767,19 @@ export class SessionController {
     this.grantSpeakWindow('user', sentAt + estimateSpeechMs(text));
     if (this.format === 'panel' && currentPhase(this.phaseRef, this.format, this.phaseConfig).id === 'SELF_INTRO') {
       this.openingUserSpeechAt = sentAt;
+    }
+    // 真人主动争取总结（PRD 5.）：改由真人总结并加分
+    if (this.format === 'lgd' && detectSummaryIntent(text)) {
+      this.summaryByUser = true;
+      this.pushEvents([
+        {
+          event_type: 'speak_grant',
+          actor: 'user',
+          target: 'all',
+          timestamp_ms: this.elapsedAt(sentAt),
+          metadata: { reason: 'user_claims_summary', bonus: SUMMARY_BONUS },
+        },
+      ]);
     }
   }
 

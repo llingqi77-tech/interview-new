@@ -1,6 +1,7 @@
 # ECS 生产编排：Caddy（TLS + 反代） + 应用容器 + 可选同机 Postgres
 #
 # 常用命令：
+# 生产域名：groupinterview.online（deploy.env 里 DOMAIN=groupinterview.online）
 #   docker compose --env-file deploy.env up -d                      # 用外部数据库
 #   docker compose --env-file deploy.env --profile localdb up -d    # 同机起 Postgres
 #   docker compose logs -f app

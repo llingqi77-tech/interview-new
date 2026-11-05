@@ -1,4 +1,5 @@
 import type { Message, RoleCard, FeedbackData, InterviewReport, InterviewFormat } from '../types';
+import { fetchWithTimeout } from './http.ts';
 import { readSseResponse } from './sse.ts';
 /**
  * LLM 服务客户端（PRD 4.1.1 / D1 修复）
@@ -44,12 +45,16 @@ interface LlmResponse<T> {
   error?: string;
 }
 
-async function postLlm<T>(body: Record<string, unknown>): Promise<LlmResponse<T>> {
-  const res = await fetch(`${API_BASE}/llm`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+async function postLlm<T>(body: Record<string, unknown>, timeoutMs = 25000): Promise<LlmResponse<T>> {
+  const res = await fetchWithTimeout(
+    `${API_BASE}/llm`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+    timeoutMs
+  );
   const text = await res.text();
   let data: T | null = null;
   try {
@@ -70,17 +75,21 @@ export async function generateTopicStream(
   company: string,
   jobTitle: string,
   onChunk: (chunk: string) => void,
-  options: { format?: InterviewFormat; topicType?: string } = {}
+  options: { format?: InterviewFormat; topicType?: string; seed?: string } = {}
 ): Promise<string> {
-  const res = await fetch(`${API_BASE}/llm`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action: 'topic',
-      payload: { company, jobTitle, ...options },
-      stream: true,
-    }),
-  });
+  const res = await fetchWithTimeout(
+    `${API_BASE}/llm`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'topic',
+        payload: { company, jobTitle, ...options },
+        stream: true,
+      }),
+    },
+    30000
+  );
   if (!res.ok || !res.body) {
     const text = await res.text().catch(() => '');
     throw new Error(`题目生成失败: ${res.status} ${text}`);
@@ -125,11 +134,15 @@ export async function generateAIReply(
 
   if (onDelta) {
     // 流式：SSE 增量 + done 元数据
-    const res = await fetch(`${API_BASE}/llm`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'reply', payload, stream: true, session_id: params.sessionId ?? null }),
-    });
+    const res = await fetchWithTimeout(
+      `${API_BASE}/llm`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reply', payload, stream: true, session_id: params.sessionId ?? null }),
+      },
+      30000
+    );
     if (!res.ok || !res.body) {
       const text = await res.text().catch(() => '');
       throw new Error(`角色发言失败: ${res.status} ${text}`);

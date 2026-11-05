@@ -1,4 +1,9 @@
+import { fetchWithTimeout } from '../services/http.ts';
+
 const API_BASE = '/api';
+
+/** 持久化接口超时：数据库不可达时不能把用户卡在设备检测页 */
+const API_TIMEOUT_MS = 8000;
 
 /**
  * 持久化客户端（PRD 4.1.4 / 4.1.9 / E.1-E.2）
@@ -63,7 +68,7 @@ export async function createSession(params: {
   walletAddress?: string | null;
 }): Promise<Session | null> {
   try {
-    const res = await fetch(`${API_BASE}/session`, {
+    const res = await fetchWithTimeout(`${API_BASE}/session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -78,7 +83,9 @@ export async function createSession(params: {
         user_id: params.userId ?? null,
         wallet_address: params.walletAddress ?? null,
       }),
-    });
+    },
+      API_TIMEOUT_MS
+    );
     if (!res.ok) return null;
     return await parseJson<Session>(res);
   } catch {
@@ -88,11 +95,13 @@ export async function createSession(params: {
 
 export async function updateSessionStatus(sessionId: number, status: string): Promise<Session | null> {
   try {
-    const res = await fetch(`${API_BASE}/session`, {
+    const res = await fetchWithTimeout(`${API_BASE}/session`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId, status }),
-    });
+    },
+      API_TIMEOUT_MS
+    );
     if (!res.ok) return null;
     return await parseJson<Session>(res);
   } catch {
@@ -103,11 +112,13 @@ export async function updateSessionStatus(sessionId: number, status: string): Pr
 // 删除会话及全部记录（隐私：TC-11 不可恢复）
 export async function deleteSession(sessionId: number): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/session`, {
+    const res = await fetchWithTimeout(`${API_BASE}/session`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId }),
-    });
+    },
+      API_TIMEOUT_MS
+    );
     return res.ok;
   } catch {
     return false;
@@ -128,7 +139,7 @@ export async function saveMessage(params: {
   stepfunSegmentId?: string | null;
 }): Promise<MessageRecord | null> {
   try {
-    const res = await fetch(`${API_BASE}/message`, {
+    const res = await fetchWithTimeout(`${API_BASE}/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -154,7 +165,7 @@ export async function saveMessage(params: {
 
 export async function getMessages(sessionId: number): Promise<MessageRecord[]> {
   try {
-    const res = await fetch(`${API_BASE}/message?session_id=${sessionId}`);
+    const res = await fetchWithTimeout(`${API_BASE}/message?session_id=${sessionId}`);
     if (!res.ok) return [];
     return (await parseJson<MessageRecord[]>(res)) ?? [];
   } catch {
@@ -169,7 +180,7 @@ export async function saveEvents(
 ): Promise<boolean> {
   if (!sessionId || events.length === 0) return false;
   try {
-    const res = await fetch(`${API_BASE}/events`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId, events }),
@@ -187,7 +198,7 @@ export async function saveVisualFeatures(
 ): Promise<boolean> {
   if (!sessionId || rows.length === 0) return false;
   try {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/visual`, {
+    const res = await fetchWithTimeout(`${API_BASE}/sessions/${sessionId}/visual`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId, rows }),
@@ -205,7 +216,7 @@ export async function saveReport(params: {
   legacy?: import('../types').FeedbackData;
 }): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/feedback`, {
+    const res = await fetchWithTimeout(`${API_BASE}/feedback`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -228,7 +239,7 @@ export async function saveReport(params: {
 
 export async function getFeedback(sessionId: number) {
   try {
-    const res = await fetch(`${API_BASE}/feedback?session_id=${sessionId}`);
+    const res = await fetchWithTimeout(`${API_BASE}/feedback?session_id=${sessionId}`);
     if (!res.ok) return null;
     return await parseJson<unknown>(res);
   } catch {
@@ -239,7 +250,7 @@ export async function getFeedback(sessionId: number) {
 // 触发服务端面后分析（/api/sessions/{id}/analyze）
 export async function triggerAnalyze(sessionId: number): Promise<import('../types').InterviewReport | null> {
   try {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/analyze`, { method: 'POST' });
+    const res = await fetchWithTimeout(`${API_BASE}/sessions/${sessionId}/analyze`, { method: 'POST' });
     if (!res.ok) return null;
     return await parseJson<import('../types').InterviewReport>(res);
   } catch {
@@ -250,7 +261,7 @@ export async function triggerAnalyze(sessionId: number): Promise<import('../type
 // 预设形象列表
 export async function getAvatarPresets(): Promise<import('../types').AvatarPreset[]> {
   try {
-    const res = await fetch(`${API_BASE}/avatars/presets`);
+    const res = await fetchWithTimeout(`${API_BASE}/avatars/presets`);
     if (!res.ok) return [];
     const data = await parseJson<{ presets: import('../types').AvatarPreset[] }>(res);
     return data?.presets ?? [];

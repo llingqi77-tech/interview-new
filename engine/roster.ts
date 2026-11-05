@@ -48,3 +48,29 @@ export function panelRoster(input: {
   }));
   return { interviewers, candidates: [], totalCandidates: 1 };
 }
+
+/** 面试官卡 → 角色卡（会话控制器统一按 RoleCard 调度） */
+export function interviewerToRoleCard(i: InterviewerCard): RoleCard {
+  return {
+    id: i.id,
+    name: i.name,
+    industry: i.jobFamilies[0] ?? 'general',
+    persona: {
+      traits: [i.archetype],
+      speaking_style: '专业、克制、追问为主',
+      conflict_strategy: 'question_frequently',
+      cooperation_level: 0.6,
+      leadership_tendency: 0.7,
+      conflict_level: 'medium',
+    },
+    voice: { provider: 'stepfun', voice_id: i.voiceId, rate: 1, emotion_default: 'neutral' },
+    avatar: { preset_id: i.avatar, emotion_set: ['neutral', 'serious'] },
+    behavior: {
+      speak_probability: 0.8,
+      interrupt_probability: 0.2,
+      avg_speak_duration: 25,
+      response_to_challenge: 'question_frequently',
+      summary_tendency: 0.2,
+    },
+  };
+}

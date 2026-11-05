@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { InterviewFormat } from '../types';
+import { MOBILE_HINTS, nextFacingMode, resolveDegradation, type DeviceState } from '../engine/deviceCheck';
+import { CONSENT_SUMMARY } from '../engine/privacy';
 
 /**
  * 设备检测与准备流程（PRD 4.1.2 / US-01 / 5.2）
@@ -13,12 +15,18 @@ export interface DeviceCheckResult {
   voiceEnabled: boolean;
   facingMode: 'user' | 'environment';
   consentSaveTranscript: boolean;
+  /** 按环境自动降级后的输入方式 */
+  inputMode?: import('../engine/inputMode').InputMode;
+  /** 降级原因（UI 横幅展示） */
+  degradedReason?: string;
 }
 
 interface DeviceCheckProps {
   format?: InterviewFormat;
   onReady: (result: DeviceCheckResult) => void;
   onBack: () => void;
+  /** 强制移动端视图（测试与窄屏预览用） */
+  isMobile?: boolean;
 }
 
 type CheckStatus = 'pending' | 'checking' | 'passed' | 'failed' | 'skipped';
@@ -40,14 +48,15 @@ function getNetworkInfo(): NetworkInfoLike | undefined {
   return (navigator as unknown as { connection?: NetworkInfoLike }).connection;
 }
 
-const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lgd' }) => {
+const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lgd', isMobile: forceMobile }) => {
   const [micStatus, setMicStatus] = useState<CheckStatus>('pending');
   const [micLevel, setMicLevel] = useState(0);
   const [cameraStatus, setCameraStatus] = useState<CheckStatus>('pending');
   const [speakerStatus, setSpeakerStatus] = useState<CheckStatus>('pending');
   const [networkStatus, setNetworkStatus] = useState<CheckStatus>('pending');
   const [networkDetail, setNetworkDetail] = useState<string>('');
-  const [cameraEnabled, setCameraEnabled] = useState(true);
+  // 摄像头默认关闭：未检测即视为跳过（纯语音模式），避免用户卡在「必须点一次摄像头」
+  const [cameraEnabled, setCameraEnabled] = useState(false);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [consent, setConsent] = useState(false);
   const [orientationHint, setOrientationHint] = useState<string | null>(null);
@@ -60,8 +69,10 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
   const rafRef = useRef<number>(0);
   /** 扬声器测试音的收尾定时器（卸载时清理，避免对已卸载组件 setState） */
   const speakerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 最近一次 API 探测延迟（ms），null 表示未测到 */
+  const networkLatencyRef = useRef<number | null>(null);
 
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isMobile = forceMobile ?? /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   // 网络检测
   useEffect(() => {
@@ -72,10 +83,12 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
     fetch('/api/avatars/presets', { method: 'GET' })
       .then((res) => {
         const ms = Math.round(performance.now() - t0);
+        networkLatencyRef.current = ms;
         setNetworkStatus(res.ok ? 'passed' : 'failed');
-        setNetworkDetail(`${detail} · API 探测 ${ms}ms`);
+        setNetworkDetail(`${detail} · API 探测延迟 ${ms}ms`);
       })
       .catch(() => {
+        networkLatencyRef.current = null;
         setNetworkStatus('failed');
         setNetworkDetail(`${detail} · API 不可达（弱网降级纯语音）`);
       });
@@ -105,10 +118,20 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
     };
   }, []);
 
+  /** 权限请求超时：浏览器把权限弹窗挂着不返回时，不能让用户卡在「检测中」 */
+  const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> =>
+    Promise.race([
+      p,
+      new Promise<T>((_, reject) => {
+        const t = setTimeout(() => reject(new Error('timeout')), ms);
+        void p.finally(() => clearTimeout(t));
+      }),
+    ]);
+
   const startMicCheck = async () => {
     setMicStatus('checking');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await withTimeout(navigator.mediaDevices.getUserMedia({ audio: true }), 8000);
       // 重测前先停掉旧流，避免多路麦克风同时占用
       micStreamRef.current?.getTracks().forEach((t) => t.stop());
       micStreamRef.current = stream;
@@ -135,10 +158,13 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
     setCameraStatus('checking');
     try {
       cameraStreamRef.current?.getTracks().forEach((t) => t.stop());
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: mode },
-        audio: false,
-      });
+      const stream = await withTimeout(
+        navigator.mediaDevices.getUserMedia({
+          video: { facingMode: mode },
+          audio: false,
+        }),
+        8000
+      );
       cameraStreamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -153,7 +179,7 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
   };
 
   const switchCamera = async () => {
-    const next = facingMode === 'user' ? 'environment' : 'user';
+    const next = nextFacingMode(facingMode);
     setFacingMode(next);
     if (cameraStatus === 'passed') await startCameraCheck(next);
   };
@@ -242,7 +268,7 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
             <div>
               <div className="font-semibold text-white flex items-center gap-2">🎤 麦克风 {statusIcon(micStatus)}</div>
               <div className="text-xs text-white/60 mt-1">
-                {micStatus === 'failed' ? '未获得麦克风权限，将使用纯文字模式' : '检测权限与输入音量'}
+                {micStatus === 'failed' ? '未获得麦克风权限，将使用纯文字模式' : '检测权限与输入音量（实时音量条）'}
               </div>
               {micStatus === 'passed' && (
                 <div className="mt-2 h-2 w-48 bg-white/10 rounded-full overflow-hidden">
@@ -285,9 +311,9 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
             >
               {cameraStatus === 'passed' ? '已通过' : '开始检测'}
             </button>
-            {isMobile && cameraStatus === 'passed' && (
+            {isMobile && (
               <button onClick={switchCamera} className="glass-btn-ghost px-4 py-2 text-sm">
-                切换{facingMode === 'user' ? '后置' : '前置'}
+                切换摄像头（当前{facingMode === 'user' ? '前置' : '后置'}）
               </button>
             )}
             <button onClick={skipCamera} className="glass-btn-ghost px-4 py-2 text-sm">
@@ -320,7 +346,7 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
             {stepNum(4)}
             <div>
               <div className="font-semibold text-white flex items-center gap-2">🌐 网络 {statusIcon(networkStatus)}</div>
-              <div className="text-xs text-white/60 mt-1">{networkDetail || '检测连通性'}</div>
+              <div className="text-xs text-white/60 mt-1">{networkDetail || '检测连通性与 API 探测延迟'}</div>
               {networkStatus === 'failed' && <div className="text-xs text-amber-300/80 mt-1">弱网将自动降级为纯语音/纯文字模式</div>}
             </div>
           </div>
@@ -332,9 +358,9 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
             <div className="text-sm font-semibold text-amber-300">📱 移动端提示</div>
             <ul className="text-xs text-amber-200/70 list-disc pl-4 space-y-0.5">
               {orientationHint && <li>{orientationHint}</li>}
-              <li>请保持手机前台，iOS Safari 后台会限制音频播放</li>
-              <li>省电模式可能降低帧率与语音质量</li>
-              <li>移动网络下延迟可能升高，可降级纯语音</li>
+              {MOBILE_HINTS.map((h) => (
+                <li key={h}>{h}</li>
+              ))}
             </ul>
           </div>
         )}
@@ -354,8 +380,10 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
               <span className="glass-toggle-knob" />
             </button>
             <span className="text-sm text-white/70">
-              我同意保存本次面试的<b className="text-white">转写文本与聚合特征</b>用于面后评估；<b className="text-white">原始音频/视频默认不保存</b>，摄像头分析全部在浏览器本地完成（0 字节上传）。
-              第三方 API（DeepSeek / StepFun）按隐私政策处理数据。
+              {CONSENT_SUMMARY}
+              <span className="block mt-1 text-white/45">
+                摄像头分析全部在浏览器本地完成（0 字节上传）；第三方 API（DeepSeek / StepFun）按隐私政策处理数据。
+              </span>
             </span>
           </div>
         </div>
@@ -363,21 +391,20 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
         {/* 群面阶段说明（PRD 4.1.3）：阶段色圆点 */}
         <div className="glass-panel p-4">
           <div className="text-sm font-semibold text-white/85 mb-2">
-            {format === 'panel' ? '⏱️ 结构化单面流程' : '⏱️ 群面流程（倒计时驱动，到点强制切换）'}
+            ⏱️ 流程预览 · {format === 'panel' ? '结构化单面' : '无领导小组讨论（倒计时驱动，到点强制切换）'}
           </div>
           <ol className="text-xs text-white/60 space-y-1.5 list-decimal pl-4">
             {format === 'panel' ? (
               <>
-                <li>阅读面试提纲（5 秒）</li>
                 <li>自我介绍（1 分钟）</li>
-                <li>面试官轮流提问与追问（8 分钟）</li>
-                <li>收尾与补充（2 分钟）→ 面后报告</li>
+                <li>面试官问答（8-10 分钟，主副面试官轮流提问与追问）</li>
+                <li>反问面试官（2 分钟，2-3 个问题）→ 面后报告</li>
               </>
             ) : (
               <>
-                <li><span className="inline-block w-1.5 h-1.5 rounded-full bg-stage-think mr-1 align-middle" />审题（10 秒，暂不发言）</li>
-                <li><span className="inline-block w-1.5 h-1.5 rounded-full bg-stage-speak mr-1 align-middle" />个人陈述（每人 1 分钟）</li>
-                <li><span className="inline-block w-1.5 h-1.5 rounded-full bg-stage-discuss mr-1 align-middle" />自由讨论（≤15 分钟，可打断/抢话）</li>
+                <li><span className="inline-block w-1.5 h-1.5 rounded-full bg-stage-think mr-1 align-middle" />审题（3 分钟，暂不发言）</li>
+                <li><span className="inline-block w-1.5 h-1.5 rounded-full bg-stage-speak mr-1 align-middle" />自我介绍（每人 1 分钟，共 4 分钟）</li>
+                <li><span className="inline-block w-1.5 h-1.5 rounded-full bg-stage-discuss mr-1 align-middle" />自由讨论（15 分钟，可打断/抢话）</li>
                 <li><span className="inline-block w-1.5 h-1.5 rounded-full bg-stage-summary mr-1 align-middle" />总结陈词（3 分钟）→ 面后报告</li>
               </>
             )}
@@ -389,9 +416,25 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
             上一步
           </button>
           <button
-            onClick={() =>
-              onReady({ cameraEnabled: cameraEnabled && cameraStatus === 'passed', voiceEnabled: micStatus !== 'failed', facingMode, consentSaveTranscript: consent })
-            }
+            onClick={() => {
+              const state: DeviceState = {
+                mic: micStatus === 'passed' ? 'ok' : 'failed',
+                camera: cameraEnabled && cameraStatus === 'passed' ? 'ok' : 'skipped',
+                speaker: speakerStatus === 'passed' ? 'ok' : 'skipped',
+                network: networkStatus === 'failed' ? 'failed' : 'ok',
+                micLevel,
+                networkLatencyMs: networkLatencyRef.current,
+              };
+              const d = resolveDegradation(state);
+              onReady({
+                cameraEnabled: d.cameraEnabled,
+                voiceEnabled: d.voiceEnabled,
+                facingMode,
+                consentSaveTranscript: consent,
+                inputMode: d.inputMode,
+                degradedReason: d.reason,
+              });
+            }}
             disabled={!canEnter}
             className="glass-btn-primary flex-1 py-3 font-bold text-base"
           >

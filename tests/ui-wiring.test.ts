@@ -79,12 +79,13 @@ test('TC-10: 网络检测与跳过摄像头（DeviceCheck）', () => {
   assert.ok(/省电|前台|横屏/.test(dc), '缺少移动端专项提示');
 });
 
-test('US-13: SetupForm 12 角色卡选择 + 约束校验', () => {
+test('US-13: SetupForm 四种题型 + 系统自动生成 3 位候选人 + 必填校验', () => {
   const form = read('components/SetupForm.tsx');
-  assert.ok(/ROLE_CARDS\.map/.test(form), '未渲染 12 角色卡');
-  assert.ok(/validateSelection/.test(form), '未校验角色组合约束');
-  assert.ok(/autoSelectRoles/.test(form), '缺少随机分配');
-  assert.ok(/TOPIC_TYPES/.test(form), '缺少题型选择');
+  assert.ok(/LGD_TOPIC_TYPES\.map/.test(form), '未渲染四种题型');
+  assert.ok(/generateCandidates/.test(form), '未按岗位自动生成候选人');
+  assert.ok(/validateSetup/.test(form), '未做必填校验');
+  assert.ok(/AI 生成题目/.test(form), '缺少 AI 生成题目入口');
+  assert.ok(/开始设备检测/.test(form), '缺少进入设备检测入口');
 });
 
 test('5.2: 目标流程状态机（IDLE → PREPARING → DISCUSSING → FINISHED）', () => {
@@ -95,7 +96,7 @@ test('5.2: 目标流程状态机（IDLE → PREPARING → DISCUSSING → FINISHE
   assert.ok(/status: 'FINISHED'/.test(app));
   assert.ok(/SetupForm onStart=\{startPreparation\}/.test(app), 'SetupForm 未接入');
   assert.ok(/DeviceCheck onReady=\{enterRoom\}/.test(app), 'DeviceCheck 未接入');
-  assert.ok(/VoiceRoom[\s\S]*onFinish=\{finishSimulation\}/.test(app), 'VoiceRoom 未接入');
+  assert.ok(/RoomStage[\s\S]*onFinish=\{finishSimulation\}/.test(app), 'RoomStage 未接入');
   assert.ok(/ReportView[\s\S]*onDelete=/.test(app), 'ReportView 未接入删除');
 });
 

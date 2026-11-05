@@ -1,327 +1,340 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import type { InterviewFormat, InterviewerCard, JobFamily, LgdTopicType, RoleCard } from '../types';
+import { LGD_TOPIC_TYPES } from '../types';
+import { TOPIC_BANK, pickTopic } from '../data/topicBank';
+import { INTERVIEWERS, inferJobFamily, matchInterviewers } from '../data/interviewers';
+import { generateCandidates } from '../data/roleCards';
+import { validateSetup } from '../engine/setupValidation';
 import { generateTopicStream } from '../services/geminiService';
-import { ROLE_CARDS, inferIndustry, cardDisplayRole } from '../data/roleCards';
-import { findAvatarPreset } from '../data/avatars';
-import { autoSelectPanel, autoSelectRoles, validatePanelSelection, validateSelection, resolveRoleCards } from '../engine/roleSelector';
-import { TOPIC_TYPES } from '../constants';
-import { DEFAULT_PANEL_SIZE, type InterviewFormat, type PanelSize, type RoleCard } from '../types';
+
 /**
- * 准备页（PRD 4.1.2 / 5.2）
- * 公司/岗位 → 面试模式 → 群面题型或单面面试官 → 生成内容 → 设备检测 → 房间。
+ * 练习配置（PRD 2. 开始练习页）
+ *
+ * 群面：公司/岗位 → 题型（四选一）→ 题库选题 → 可「AI 生成题目」流式改写 → 可编辑文本框
+ * 单面：公司/岗位 → 面试官人数（默认 2）→ 从 6 个形象里挑 → 支持「岗位匹配」
+ * 两种模式都走「开始设备检测」进入下一环节。
  */
 
-interface SetupFormProps {
-  onStart: (params: {
-    topic: string;
-    jobTitle: string;
-    company: string;
-    topicType: string;
-    format: InterviewFormat;
-    roles: RoleCard[];
-  }) => void;
+export interface SetupParams {
+  company: string;
+  jobTitle: string;
+  format: InterviewFormat;
+  topicType: LgdTopicType;
+  topic: string;
+  keyPoints: string[];
+  roles: RoleCard[];
+  interviewers: InterviewerCard[];
+  panelSize: 2 | 3;
+  jobFamily: JobFamily;
 }
 
-const ROLE_BADGE: Record<string, { label: string; className: string }> = {
-  AGGRESSIVE: { label: '高冲突', className: 'bg-red-400/15 border-red-400/30 text-red-300' },
-  STRUCTURED: { label: '高协作', className: 'bg-blue-400/15 border-blue-400/30 text-blue-300' },
-  DETAIL: { label: '中立', className: 'bg-emerald-400/15 border-emerald-400/30 text-emerald-300' },
-};
+export interface SetupFormProps {
+  onStart: (params: SetupParams) => void;
+  initialFormat?: InterviewFormat;
+}
 
-const SetupForm: React.FC<SetupFormProps> = ({ onStart }) => {
-  const [topic, setTopic] = useState('');
-  const [jobTitle, setJobTitle] = useState('');
+const SetupForm: React.FC<SetupFormProps> = ({ onStart, initialFormat = 'lgd' }) => {
   const [company, setCompany] = useState('');
-  const [topicType, setTopicType] = useState<string>('business_case');
-  /** 群面阵型：lgd = 主持 + 3 位 AI 候选人 + 我；panel = 2 或 3 位面试官 + 我 */
-  const [format, setFormat] = useState<InterviewFormat>('lgd');
-  /** 结构化单面默认 2 位，可选 3 位。 */
-  const [panelSize, setPanelSize] = useState<PanelSize>(DEFAULT_PANEL_SIZE);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [isGenerating, setIsGenerating] = useState(false);
-  /** 题目卡是否已展开：清空题目内容时不能把输入框自己卸载掉（否则用户没法继续手写） */
-  const [topicShown, setTopicShown] = useState(false);
-  const roleCap = format === 'panel' ? panelSize : 3;
-  const selectedCards = resolveRoleCards(selectedIds);
-  const violations = format === 'panel' ? validatePanelSelection(selectedCards, panelSize) : [];
+  const [jobTitle, setJobTitle] = useState('');
+  const [format, setFormat] = useState<InterviewFormat>(initialFormat);
+  const [topicType, setTopicType] = useState<LgdTopicType>('business_case');
+  const [topicIndex, setTopicIndex] = useState(0);
+  const [topic, setTopic] = useState('');
+  const [keyPoints, setKeyPoints] = useState<string[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [panelSize, setPanelSize] = useState<2 | 3>(2);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [errors, setErrors] = useState<string[]>([]);
 
-  const applyFormat = (next: InterviewFormat) => {
-    if (next === format) return;
-    setFormat(next);
+  const jobFamily = useMemo(() => inferJobFamily(jobTitle), [jobTitle]);
+  const bank = TOPIC_BANK[topicType];
+  const candidates = useMemo(
+    () => (company && jobTitle ? generateCandidates({ company, jobTitle, seed: 20261105 }) : []),
+    [company, jobTitle]
+  );
+
+  const matched = useMemo(
+    () => matchInterviewers({ jobTitle: jobTitle || '通用岗位', company, count: panelSize }),
+    [jobTitle, company, panelSize]
+  );
+
+  const effectiveInterviewers = useMemo(() => {
+    const picked = selected
+      .map((id) => INTERVIEWERS.find((i) => i.id === id))
+      .filter((i): i is InterviewerCard => Boolean(i));
+    const list = picked.length === panelSize ? picked : matched;
+    return list.map((i, idx) => ({ ...i, role: idx === 0 ? ('lead' as const) : ('support' as const) }));
+  }, [selected, panelSize, matched]);
+
+  const applyBankTopic = (index: number) => {
+    const entry = bank[index] ?? bank[0];
+    setTopicIndex(index);
+    setTopic(entry.prompt);
+    setKeyPoints(entry.keyPoints);
+  };
+
+  const handleGenerate = async () => {
+    if (!company.trim() || !jobTitle.trim()) {
+      setErrors(['请先填写目标公司与应聘岗位']);
+      return;
+    }
+    setErrors([]);
+    setGenerating(true);
+    const seed = pickTopic(topicType, topicIndex);
     setTopic('');
+    try {
+      await generateTopicStream(
+        company,
+        jobTitle,
+        (chunk) => setTopic((prev) => prev + chunk),
+        { format: 'lgd', topicType, seed: seed.prompt }
+      );
+      setKeyPoints(seed.keyPoints);
+    } catch {
+      setTopic(seed.prompt);
+      setKeyPoints(seed.keyPoints);
+    } finally {
+      setGenerating(false);
+    }
   };
 
-  const applyPanelSize = (next: PanelSize) => {
-    setPanelSize(next);
-    setSelectedIds((prev) => prev.slice(0, next));
-  };
-
-  const toggleCard = (id: string) => {
-    setSelectedIds((prev) => {
+  const toggleInterviewer = (id: string) => {
+    setSelected((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= roleCap) return prev;
+      if (prev.length >= panelSize) return [...prev.slice(1), id];
       return [...prev, id];
     });
   };
 
-  const handleAutoSelect = () => {
-    const industry = inferIndustry(jobTitle || company);
-    const seed = Date.now() % 100000;
-    const cards = autoSelectPanel(industry, seed, panelSize);
-    setSelectedIds(cards.map((c) => c.id));
-  };
-
-  const handleGenerate = async () => {
-    if (!company || !jobTitle) {
-      alert('请填写公司和岗位');
+  const handleStart = () => {
+    const errs = validateSetup({
+      company,
+      jobTitle,
+      format,
+      topicType,
+      topic: format === 'lgd' ? topic : undefined,
+      interviewerIds: format === 'panel' ? effectiveInterviewers.map((i) => i.id) : undefined,
+      panelSize,
+    });
+    if (errs.length > 0) {
+      setErrors(errs.map((e) => e.message));
       return;
     }
-    setIsGenerating(true);
-    setTopic('');
-    setTopicShown(true);
-    try {
-      const cleaned = await generateTopicStream(company, jobTitle, (chunk) => setTopic((prev) => prev + chunk), {
-        format,
-        ...(format === 'lgd' ? { topicType } : {}),
-      });
-      setTopic(cleaned || '请手动输入题目');
-    } catch (error) {
-      console.error(error);
-      setTopic('题目生成失败，请手动输入。');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!topic || !jobTitle || !company) return;
-    const cards = format === 'panel'
-      ? selectedCards
-      : autoSelectRoles(inferIndustry(jobTitle || company), Date.now() % 100000);
-    if (format === 'panel' && cards.length !== panelSize) {
-      alert(`请选择 ${panelSize} 个面试官角色（或点击随机分配）`);
-      return;
-    }
-    const selectionErrors = format === 'panel' ? violations : validateSelection(cards);
-    if (selectionErrors.length > 0) {
-      alert(`角色组合不满足约束：${selectionErrors.map((v) => v.message).join('；')}`);
-      return;
-    }
-    onStart({ topic, jobTitle, company, topicType: format === 'panel' ? 'structured_interview' : topicType, format, roles: cards });
+    setErrors([]);
+    onStart({
+      company: company.trim(),
+      jobTitle: jobTitle.trim(),
+      format,
+      topicType,
+      topic: format === 'lgd' ? topic : '',
+      keyPoints: format === 'lgd' ? keyPoints : [],
+      roles: format === 'lgd' ? candidates : [],
+      interviewers: format === 'panel' ? effectiveInterviewers : [],
+      panelSize,
+      jobFamily,
+    });
   };
 
   return (
-    <div className="w-full max-w-3xl mx-auto glass-panel overflow-hidden">
-      {/* 头部：超大标题 + 品牌渐变关键词 + 英文小字（替换原蓝色实色块） */}
-      <div className="px-8 pt-10 pb-6 text-center">
-        <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight">
-          开始<span className="text-gradient-brand">练习</span>
-        </h1>
-        <p className="mt-3 text-[11px] md:text-xs text-white/40 tracking-widest uppercase">
-          Leaderless Group Discussion Simulator
+    <div className="glass-panel p-6 md:p-8 space-y-6">
+      <header>
+        <h1 className="text-2xl font-bold text-white">开始一场面试练习</h1>
+        <p className="text-sm text-white/55 mt-1">
+          填写目标公司与应聘岗位，选择面试模式，AI 会按岗位生成题目与角色。
         </p>
-        <p className="text-white/60 text-sm mt-3">
-          {format === 'panel' ? '填写信息 · 选择面试官形象 · 生成面试提纲' : '填写信息 · 选择题目类型 · 与 3 位 AI 同场讨论'}
-        </p>
-      </div>
+      </header>
 
-      <form onSubmit={handleSubmit} className="stagger px-8 pb-8 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="setup-company" className="block text-sm font-semibold text-white/60 mb-2">目标公司</label>
-            <input
-              id="setup-company"
-              type="text"
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              placeholder="如：字节跳动、腾讯、阿里"
-              className="glass-input px-4 py-3"
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="setup-job-title" className="block text-sm font-semibold text-white/60 mb-2">应聘岗位</label>
-            <input
-              id="setup-job-title"
-              type="text"
-              value={jobTitle}
-              onChange={(e) => setJobTitle(e.target.value)}
-              placeholder="如：产品经理、运营专员"
-              className="glass-input px-4 py-3"
-              required
-            />
-          </div>
+      <section className="grid gap-4 md:grid-cols-2">
+        <label className="block">
+          <span className="text-sm text-white/70">目标公司 *</span>
+          <input
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            placeholder="例如：字节跳动"
+            className="glass-input mt-1 w-full px-3 py-2"
+          />
+        </label>
+        <label className="block">
+          <span className="text-sm text-white/70">应聘岗位 *</span>
+          <input
+            value={jobTitle}
+            onChange={(e) => setJobTitle(e.target.value)}
+            placeholder="例如：产品经理"
+            className="glass-input mt-1 w-full px-3 py-2"
+          />
+        </label>
+      </section>
+
+      <section>
+        <span className="text-sm text-white/70">面试模式</span>
+        <div className="mt-2 grid gap-3 md:grid-cols-2">
+          {(
+            [
+              { id: 'lgd', label: '无领导小组讨论', hint: '1 位主持面试官 + 3 位 AI 候选人，倒计时四阶段' },
+              { id: 'panel', label: '结构化单面', hint: '2 位面试官轮流提问，STAR 结构化追问' },
+            ] as const
+          ).map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setFormat(m.id)}
+              data-active={format === m.id}
+              className={`glass-btn text-left px-4 py-3 ${format === m.id ? 'ring-1 ring-cyan-300/60' : ''}`}
+            >
+              <div className="font-semibold text-white">{m.label}</div>
+              <div className="text-xs text-white/50 mt-1">{m.hint}</div>
+            </button>
+          ))}
         </div>
+      </section>
 
-        {/* 先选择模式，再显示该模式需要的准备选项。 */}
-        <div>
-          <div className="block text-sm font-semibold text-white/60 mb-2">面试模式</div>
-          <div role="group" aria-label="面试模式" className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => applyFormat('lgd')}
-              disabled={isGenerating}
-              aria-pressed={format === 'lgd'}
-              className={`glass-card setup-choice p-4 text-left ${format === 'lgd' ? 'setup-choice-selected' : ''}`}
-            >
-              <div className="text-sm font-bold text-white">无领导小组讨论</div>
-              <div className="text-[11px] text-white/50 mt-1 leading-relaxed">
-                1 位主持面试官控场（审题 → 个人陈述 → 自由讨论 → 总结），3 位 AI 候选人与你同场，共 4 位候选人
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => applyFormat('panel')}
-              disabled={isGenerating}
-              aria-pressed={format === 'panel'}
-              className={`glass-card setup-choice p-4 text-left ${format === 'panel' ? 'setup-choice-selected' : ''}`}
-            >
-              <div className="text-sm font-bold text-white">结构化单面</div>
-              <div className="text-[11px] text-white/50 mt-1 leading-relaxed">
-                AI 面试官轮流提问、追问，你是唯一候选人。默认 2 位面试官，可切换为 3 位
-              </div>
-            </button>
-          </div>
-          {format === 'panel' && (
-            <div className="mt-3">
-              <div className="text-[11px] font-semibold text-white/50 mb-2">面试官人数</div>
-              <div className="flex gap-2">
-                {([2, 3] as const).map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => applyPanelSize(n)}
-                    aria-pressed={panelSize === n}
-                    className={`glass-btn-ghost setup-choice text-xs px-3 py-1.5 ${panelSize === n ? 'setup-choice-selected' : ''}`}
-                  >
-                    {n} 位{n === DEFAULT_PANEL_SIZE ? '（默认）' : ''}
-                  </button>
-                ))}
-              </div>
+      {format === 'lgd' ? (
+        <section className="space-y-3">
+          <div>
+            <span className="text-sm text-white/70">题目类型</span>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {LGD_TOPIC_TYPES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => {
+                    setTopicType(t.id);
+                    setTopicIndex(0);
+                    setTopic('');
+                    setKeyPoints([]);
+                  }}
+                  data-active={topicType === t.id}
+                  className={`glass-chip px-3 py-1.5 text-xs ${topicType === t.id ? 'ring-1 ring-cyan-300/60' : ''}`}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
-          )}
-        </div>
+          </div>
 
-        {format === 'lgd' && (
-          <div>
-            <label htmlFor="setup-topic-type" className="block text-sm font-semibold text-white/60 mb-2">题目类型</label>
+          <div className="flex flex-wrap items-center gap-2">
             <select
-              id="setup-topic-type"
-              value={topicType}
-              onChange={(e) => { setTopicType(e.target.value); setTopic(''); }}
-              disabled={isGenerating}
-              className="glass-input px-4 py-3"
+              value={topicIndex}
+              onChange={(e) => applyBankTopic(Number(e.target.value))}
+              className="glass-input px-3 py-2 text-sm"
             >
-              {TOPIC_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
+              {bank.map((entry, i) => (
+                <option key={entry.id} value={i}>
+                  {entry.title}
+                </option>
               ))}
             </select>
+            <button type="button" onClick={() => applyBankTopic(topicIndex)} className="glass-btn text-sm px-3 py-2">
+              从题库调用
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleGenerate()}
+              disabled={generating}
+              className="glass-btn-primary text-sm px-3 py-2 disabled:opacity-50"
+            >
+              {generating ? '生成中…' : 'AI 生成题目'}
+            </button>
           </div>
-        )}
 
-        {/* 只有结构化单面需要选择面试官形象。 */}
-        {format === 'panel' && (
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <label className="block text-sm font-semibold text-white/60">
-                选择面试官形象（<span className="tabular-nums">{selectedIds.length}</span>/{panelSize}）
-              </label>
-              <button
-                type="button"
-                onClick={handleAutoSelect}
-                className="glass-btn-ghost text-xs px-3 py-1.5"
-              >
-                随机分配（按岗位匹配）
-              </button>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-80 overflow-y-auto p-1 glass-scroll">
-              {ROLE_CARDS.map((card) => {
-                const preset = findAvatarPreset(card.avatar.preset_id);
-                const selected = selectedIds.includes(card.id);
-                const badge = ROLE_BADGE[cardDisplayRole(card)];
-                return (
-                  <button
-                    key={card.id}
-                    type="button"
-                    onClick={() => toggleCard(card.id)}
-                    aria-pressed={selected}
-                    className={`glass-card bounce-liquid flex flex-col items-center p-3 ${selected ? 'glass-selected' : ''}`}
-                  >
-                    <img src={preset?.asset_url} alt={card.name} className="w-14 h-14 rounded-full border border-white/15" />
-                    <span className="mt-2 text-xs font-semibold text-white whitespace-nowrap">{card.name}</span>
-                    <span className={`glass-chip mt-1.5 text-[10px] px-2 py-0.5 border ${badge.className}`}>{badge.label}</span>
-                    <span className="text-[10px] text-white/40 mt-1">{card.industry}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {selectedIds.length > 0 && violations.length > 0 && (
-              <div className="mt-2 text-xs text-amber-300/80 space-y-0.5">
-                {violations.map((v) => (
-                  <div key={v.rule}>⚠️ {v.message}</div>
+          <label className="block">
+            <span className="text-sm text-white/70">讨论题目（可编辑）</span>
+            <textarea
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              rows={5}
+              placeholder="从题库调用，或点「AI 生成题目」流式生成后在这里修改"
+              className="glass-input mt-1 w-full px-3 py-2 text-sm leading-relaxed"
+            />
+          </label>
+
+          {candidates.length > 0 && (
+            <div>
+              <span className="text-sm text-white/70">本场 AI 候选人（按岗位自动生成）</span>
+              <div className="mt-2 grid gap-2 md:grid-cols-3">
+                {candidates.map((c) => (
+                  <div key={c.id} className="glass-panel p-3 text-xs text-white/70">
+                    <div className="font-semibold text-white">{c.name}</div>
+                    <div className="mt-1">
+                      {c.background?.education} · {c.background?.major}
+                    </div>
+                    <div className="text-white/45 mt-1">{c.background?.internship}</div>
+                  </div>
                 ))}
               </div>
-            )}
-            {selectedIds.length === roleCap && violations.length === 0 && (
-              <div className="mt-2 text-xs text-emerald-300/80">
-                ✅ 组合满足约束：音色/形象不重复
-              </div>
-            )}
-          </div>
-        )}
-
-        <button
-          type="button"
-          onClick={handleGenerate}
-          disabled={isGenerating || !company || !jobTitle}
-          className="glass-btn w-full py-3 font-medium"
-        >
-          {isGenerating ? (
-            <>
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4" fill="none"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-              </svg>
-              生成中...
-            </>
-          ) : (
-            format === 'panel' ? 'AI 生成面试提纲' : 'AI 生成题目'
-          )}
-        </button>
-
-        {topicShown && (
-          <div>
-            <label htmlFor="setup-topic" className="block text-sm font-semibold text-white/60 mb-2">
-              {format === 'panel' ? '面试提纲' : '群面题目'}
-            </label>
-            {/* 题目卡：white/8 玻璃 + 左侧 3px 品牌渐变色条 */}
-            <div className="relative glass-card p-4 pl-6">
-              <div className="absolute left-3 top-4 bottom-4 w-[3px] rounded-full bg-gradient-to-b from-brand to-brand-soft" aria-hidden="true" />
-              <textarea
-                id="setup-topic"
-                value={topic}
-                onChange={(e) => {
-                  setTopic(e.target.value);
-                  setTopicShown(true);
-                }}
-                className="w-full h-44 bg-transparent outline-none resize-none text-sm leading-relaxed text-white/85 placeholder:text-white/30"
-                placeholder="生成的题目将显示在这里..."
-              />
             </div>
+          )}
+        </section>
+      ) : (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm text-white/70">面试官人数</span>
+            {[2, 3].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => {
+                  setPanelSize(n as 2 | 3);
+                  setSelected([]);
+                }}
+                data-active={panelSize === n}
+                className={`glass-chip px-3 py-1.5 text-xs ${panelSize === n ? 'ring-1 ring-cyan-300/60' : ''}`}
+              >
+                {n} 位
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setSelected(matched.map((i) => i.id))}
+              className="glass-btn text-sm px-3 py-1.5"
+            >
+              岗位匹配
+            </button>
+            <span className="text-xs text-white/40">当前岗位族：{jobFamily}</span>
           </div>
-        )}
 
-        {topic && (
-          /* 主 CTA：液态折射层 + 品牌渐变微光，尺寸大一个量级 */
-          <button
-            type="submit"
-            disabled={format === 'panel' && (selectedCards.length !== panelSize || violations.length > 0)}
-            className="liquid glass-btn-primary w-full py-5 text-lg font-bold"
-          >
-            <span className="liquid-content">开始设备检测</span>
-          </button>
-        )}
-      </form>
+          <div className="grid gap-2 md:grid-cols-3">
+            {INTERVIEWERS.map((i) => {
+              const active = effectiveInterviewers.some((x) => x.id === i.id);
+              return (
+                <button
+                  key={i.id}
+                  type="button"
+                  onClick={() => toggleInterviewer(i.id)}
+                  data-active={active}
+                  className={`glass-panel p-3 text-left text-xs ${active ? 'ring-1 ring-cyan-300/60' : ''}`}
+                >
+                  <div className="font-semibold text-white">{i.archetype}</div>
+                  <div className="text-white/60 mt-1">
+                    {i.name} · {i.title}
+                  </div>
+                  <div className="text-white/40 mt-1">
+                    {i.yearsExperience} 年经验 · {i.jobFamilies.join('/')}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="text-xs text-white/45">
+            面试题目将在进入房间后，根据你的自我介绍与目标岗位即时生成（STAR 结构化面试）。
+          </p>
+        </section>
+      )}
+
+      {errors.length > 0 && (
+        <ul className="text-sm text-red-300 space-y-1">
+          {errors.map((e) => (
+            <li key={e}>· {e}</li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex justify-end">
+        <button type="button" onClick={handleStart} className="glass-btn-primary px-6 py-2.5">
+          开始设备检测
+        </button>
+      </div>
     </div>
   );
 };

@@ -525,9 +525,8 @@ test('缺陷回归 · DiscussionPanel：ASR 最终转写不得写两遍', () => 
 
 test('缺陷回归 · SetupForm：清空题目不得把输入框自己卸载掉', () => {
   const setup = read('components/SetupForm.tsx');
-  assert.ok(/topicShown/.test(setup), '缺少题目卡展开标记');
-  assert.ok(
-    /\{topicShown && \(/.test(setup),
-    '题目卡必须由 topicShown 控制（不能由 topic 内容控制，否则清空即卸载输入框）'
-  );
+  // 题目文本框必须无条件渲染（不能由 topic 内容控制，否则清空即卸载输入框、AI 流式输出无处可写）
+  assert.ok(/<textarea/.test(setup), '缺少题目文本框');
+  assert.ok(!/\{topic && \(/.test(setup), '题目文本框不得由 topic 内容控制');
+  assert.ok(!/\{topic\.length > 0 && \(/.test(setup), '题目文本框不得由 topic 长度控制');
 });
