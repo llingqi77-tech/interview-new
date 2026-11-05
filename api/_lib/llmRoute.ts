@@ -115,10 +115,56 @@ export async function handleTopic(response: VercelResponse, payload: Payload, st
   response.status(200).json({ content: cleanTopicText(full) || TOPIC_FAILURE_FALLBACK });
 }
 
+/**
+ * 解析发言角色卡。
+ * 优先用服务端注册表（12 张首发卡 + 主持卡）；本场动态生成的候选人/面试官
+ * 由客户端随请求带上完整卡片（只有人设文案，无密钥），服务端做结构校验后使用。
+ */
 export function resolveReplyCard(payload: Payload): RoleCard | null {
-  const requestedId = textField(payload.card as Payload | undefined ?? {}, 'id');
-  const card = isHostCard(requestedId) ? HOST_CARD : findRoleCard(requestedId);
-  return card ?? null;
+  const raw = (payload.card as Payload | undefined) ?? {};
+  const requestedId = textField(raw, 'id');
+  const known = isHostCard(requestedId) ? HOST_CARD : findRoleCard(requestedId);
+  if (known) return known;
+  return sanitizeCard(raw);
+}
+
+const EMOTIONS = ['neutral', 'positive', 'tense', 'serious'];
+
+function sanitizeCard(raw: Payload): RoleCard | null {
+  const id = textField(raw, 'id');
+  const name = textField(raw, 'name');
+  if (!id || !name) return null;
+  const persona = (raw.persona as Payload | undefined) ?? {};
+  const voice = (raw.voice as Payload | undefined) ?? {};
+  const behavior = (raw.behavior as Payload | undefined) ?? {};
+  const traits = Array.isArray(persona.traits) ? persona.traits.filter((t): t is string => typeof t === 'string').slice(0, 6) : [];
+  return {
+    id: id.slice(0, 64),
+    name: name.slice(0, 32),
+    industry: textField(raw, 'industry', 'general').slice(0, 32),
+    persona: {
+      traits,
+      speaking_style: textField(persona, 'speaking_style', '自然口语').slice(0, 200),
+      conflict_strategy: textField(persona, 'conflict_strategy', 'compromise').slice(0, 64),
+      cooperation_level: finiteNumber(persona.cooperation_level) ?? 0.6,
+      leadership_tendency: finiteNumber(persona.leadership_tendency) ?? 0.5,
+      conflict_level: persona.conflict_level === 'high' || persona.conflict_level === 'low' ? persona.conflict_level : 'medium',
+    },
+    voice: {
+      provider: 'stepfun',
+      voice_id: textField(voice, 'voice_id', 'zhengpaiqingnian').slice(0, 64),
+      rate: finiteNumber(voice.rate) ?? 1,
+      emotion_default: EMOTIONS.includes(String(voice.emotion_default)) ? String(voice.emotion_default) : 'neutral',
+    },
+    avatar: { preset_id: 'candidate_01', emotion_set: ['neutral'] },
+    behavior: {
+      speak_probability: finiteNumber(behavior.speak_probability) ?? 0.7,
+      interrupt_probability: finiteNumber(behavior.interrupt_probability) ?? 0.3,
+      avg_speak_duration: finiteNumber(behavior.avg_speak_duration) ?? 30,
+      response_to_challenge: textField(behavior, 'response_to_challenge', 'compromise').slice(0, 64),
+      summary_tendency: finiteNumber(behavior.summary_tendency) ?? 0.3,
+    },
+  };
 }
 
 export function buildReplyPayload(payload: Payload, card: RoleCard): ReplyPayload {

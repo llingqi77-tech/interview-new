@@ -46,6 +46,7 @@ import { transitionKey } from '../../engine/phaseEngine.ts';
 import { beepCuesFor } from '../../engine/beep.ts';
 import { playBeep } from '../../services/beepPlayer.ts';
 import { detectSummaryIntent, SUMMARY_BONUS } from '../../engine/summaryIntent.ts';
+import { fallbackLine } from '../../engine/fallbackLines.ts';
 import type { SpeakerKind } from './speakerKind.ts';
 import {
   AI_PLAYING_RETRY_MS,
@@ -248,8 +249,18 @@ export class SessionController {
       this.commitAiUtterance(card, speakerKind, phaseAtStart, spoken);
       await this.playAiLine(card, spoken);
     } catch (err) {
-      console.error('AI 发言失败:', err);
+      console.error('AI 发言失败，使用兜底台词继续:', err);
+      // 降级保护：LLM 异常时用兜底台词把流程接下去，讨论不中断
       this.store.set({ degraded: true });
+      if (!stale && !this.disposed && epoch === this.turnEpoch) {
+        const now = Date.now();
+        const line = fallbackLine(speakerKind === 'host' ? 'host' : speakerKind === 'interviewer' ? 'interviewer' : 'candidate', this.format, now);
+        this.commitAiUtterance(card, speakerKind, phaseAtStart, {
+          result: { content: line, emotion: 'neutral', target: null, stepfun_tts_instruction: null },
+          content: line,
+          startedAt: now,
+        });
+      }
     } finally {
       this.endAiTurn(card.id, speakerKind, stale);
     }

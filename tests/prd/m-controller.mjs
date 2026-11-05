@@ -117,6 +117,108 @@ export const checks = [
     },
   },
   {
+    id: 'C9', area, title: '倒计时到点自动切换阶段并播报下一阶段引导语（真实 tick 循环）',
+    async run() {
+      const { controller } = await makeController({ phaseDurationsMs: { READING: 300 } });
+      controller.announceOpening();
+      controller.init();
+      await new Promise((r) => setTimeout(r, 1200));
+      const snap = controller.store.getSnapshot();
+      controller.dispose();
+      assert.ok(snap.phase.phaseIndex >= 1, `阶段未自动推进: ${snap.phase.phaseIndex}`);
+      const announced = snap.messages.filter((m) => m.type === 'system');
+      assert.ok(announced.length >= 2, `未播报下一阶段引导语（只有 ${announced.length} 条）`);
+      assert.ok(
+        announced.some((m) => m.content.includes('审题时间到')),
+        '缺少「审题 → 自我介绍」引导语'
+      );
+    },
+  },
+  {
+    id: 'C10', area, title: '单面房间：主副面试官轮流提问（真实 tick 循环）',
+    async run() {
+      const { generateCandidates } = await load('data/roleCards.ts');
+      const { interviewerToRoleCard } = await load('engine/roster.ts');
+      const { matchInterviewers } = await load('data/interviewers.ts');
+      const panel = matchInterviewers({ jobTitle: '产品经理', company: '字节跳动', count: 2 }).map(interviewerToRoleCard);
+      const { SessionController } = await load('src/session/sessionController.ts');
+      const asked = [];
+      const c = new SessionController({
+        state: { topic: '', jobTitle: '产品经理', company: '字节跳动', status: 'DISCUSSING', format: 'panel' },
+        roles: panel,
+        sessionId: null,
+        consentSaveTranscript: false,
+        cameraEnabled: false,
+        facingMode: 'user',
+        format: 'panel',
+        onFinish: () => undefined,
+        generateReply: async (params) => {
+          asked.push(params.card.id);
+          return { content: '请讲一个你主导的项目。', emotion: 'neutral', target: 'user', stepfun_tts_instruction: null };
+        },
+        playBeep: () => undefined,
+      });
+      c.announceOpening();
+      c.forcePhaseForTest({
+        format: 'panel', phaseIndex: 1, phaseStartedAt: Date.now(),
+        openingIndex: 0, openingStartedAt: 0, warned: false, wrapped: false, finished: false,
+      });
+      await c.triggerAITurn(panel[0], { speakerKind: 'interviewer', force: true });
+      await c.triggerAITurn(panel[1], { speakerKind: 'interviewer', force: true });
+      c.dispose();
+      assert.equal(asked.length, 2, '两位面试官未各问一次');
+      assert.notEqual(asked[0], asked[1], '主副面试官未轮换');
+      void generateCandidates;
+    },
+  },
+  {
+    id: 'C11', area, title: 'LLM 异常时用兜底台词继续，讨论不中断',
+    async run() {
+      const { SessionController } = await load('src/session/sessionController.ts');
+      const { generateCandidates } = await load('data/roleCards.ts');
+      const roles = generateCandidates({ company: '字节跳动', jobTitle: '产品经理', seed: 3 });
+      const c = new SessionController({
+        state: { topic: '题目', jobTitle: '产品经理', company: '字节跳动', status: 'DISCUSSING', format: 'lgd' },
+        roles,
+        sessionId: null,
+        consentSaveTranscript: false,
+        cameraEnabled: false,
+        facingMode: 'user',
+        format: 'lgd',
+        onFinish: () => undefined,
+        generateReply: async () => {
+          throw new Error('LLM 402 Insufficient Balance');
+        },
+        playBeep: () => undefined,
+      });
+      c.forcePhaseForTest({
+        format: 'lgd', phaseIndex: 2, phaseStartedAt: Date.now(),
+        openingIndex: 0, openingStartedAt: 0, warned: false, wrapped: false, finished: false,
+      });
+      await c.triggerAITurn(roles[0], { speakerKind: 'candidate', force: true });
+      const snap = c.store.getSnapshot();
+      c.dispose();
+      assert.equal(snap.degraded, true, '未标记降级');
+      assert.equal(snap.messages.length, 1, 'LLM 失败后未落兜底台词');
+      assert.ok(snap.messages[0].content.length > 8, '兜底台词为空');
+    },
+  },
+  {
+    id: 'C12', area, title: '服务端能解析本场动态生成的卡片（不再 400 未知角色卡）',
+    async run() {
+      const route = await load('api/_lib/llmRoute.ts');
+      const { generateCandidates } = await load('data/roleCards.ts');
+      const card = generateCandidates({ company: '字节跳动', jobTitle: '产品经理', seed: 5 })[0];
+      const resolved = route.resolveReplyCard({ card });
+      assert.ok(resolved, '动态卡片未被解析');
+      assert.equal(resolved.id, card.id);
+      assert.equal(resolved.name, card.name);
+      assert.ok(resolved.persona.traits.length > 0);
+      // 未知 id 且无卡片体 → 仍然拒绝
+      assert.equal(route.resolveReplyCard({ card: { id: 'nope' } }), null);
+    },
+  },
+  {
     id: 'C8', area, title: 'AI 不打断真人（调度器接线）',
     async run() {
       const c = read('src/session/sessionController.ts');

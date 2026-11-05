@@ -287,13 +287,19 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
         <aside className="hidden md:flex md:w-72 shrink-0 flex-col gap-2 overflow-y-auto">
           <div className="glass-panel p-3">
             <div className="text-xs font-semibold text-white/80 mb-1">题目</div>
-            <p className="text-[11px] text-white/60 leading-relaxed">{topic}</p>
-            <div className="text-xs font-semibold text-white/80 mt-3 mb-1">讨论要点</div>
-            <ul className="text-[11px] text-white/60 space-y-1">
-              {keyPoints.map((k) => (
-                <li key={k}>· {k}</li>
-              ))}
-            </ul>
+            <p className="text-[11px] text-white/60 leading-relaxed">
+              {topic || '面试题目将在你完成自我介绍后，按目标岗位即时生成（STAR 结构化）'}
+            </p>
+            {keyPoints.length > 0 && (
+              <>
+                <div className="text-xs font-semibold text-white/80 mt-3 mb-1">讨论要点</div>
+                <ul className="text-[11px] text-white/60 space-y-1">
+                  {keyPoints.map((k) => (
+                    <li key={k}>· {k}</li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
 
           <div className="glass-panel p-3">
@@ -301,7 +307,8 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
               {format === 'panel' ? '面试官' : '角色卡'}
             </div>
             <div className="space-y-1.5">
-              {roles.map((r) => (
+              {/* 群面渲染 AI 候选人；单面只渲染面试官（roles 是面试官的角色卡镜像，避免重复） */}
+              {format !== 'panel' && roles.map((r) => (
                 <div
                   key={r.id}
                   data-speaking={activeId === r.id ? 'true' : 'false'}

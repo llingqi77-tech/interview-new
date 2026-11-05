@@ -120,7 +120,7 @@ export async function generateAIReply(
   onDelta?: (chunk: string) => void
 ): Promise<ReplyResult> {
   const payload: Record<string, unknown> = {
-    card: { id: params.card.id },
+    card: params.card,
     topic: params.topic,
     jobTitle: params.jobTitle,
     history: params.history.map((m) => ({ senderId: m.senderId, senderName: m.senderName, content: m.content })),
