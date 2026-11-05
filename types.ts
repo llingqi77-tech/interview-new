@@ -77,6 +77,8 @@ export interface RoleCard {
   voice: RoleVoice;
   avatar: RoleAvatar;
   behavior: RoleBehavior;
+  /** 候选人背景（PRD 5. AI 候选人背景设计规范）；主持/面试官卡可缺省 */
+  background?: CandidateBackground;
 }
 
 /** 预设形象（附录 D.3 avatars 表） */
@@ -279,4 +281,66 @@ export interface SimulationState {
   status: 'IDLE' | 'PREPARING' | 'DISCUSSING' | 'FINISHED';
   /** 群面阵型（缺省 lgd，向后兼容旧数据） */
   format?: InterviewFormat;
+}
+
+// ============================================================
+// PRD 一致性重构：状态机 / 题型 / 维度 / 阶段
+// ============================================================
+
+/** 四段式流程（PRD 1. 整体流程总览） */
+export const STATUS_FLOW = ['IDLE', 'PREPARING', 'DISCUSSING', 'FINISHED'] as const;
+export type SimulationStatus = (typeof STATUS_FLOW)[number];
+
+/** 无领导小组讨论四种题目类型（PRD 2. 练习配置） */
+export type LgdTopicType = 'business_case' | 'open_debate' | 'resource_scramble' | 'priority_rank';
+
+export const LGD_TOPIC_TYPES: { id: LgdTopicType; label: string; hint: string }[] = [
+  { id: 'business_case', label: '商业案例题', hint: '给定经营场景，要求给出可落地的方案与取舍' },
+  { id: 'open_debate', label: '开放辩论题', hint: '存在对立立场，要求论证并尝试达成一致' },
+  { id: 'resource_scramble', label: '资源争夺题', hint: '有限资源在多个诉求方之间分配' },
+  { id: 'priority_rank', label: '优先级排序题', hint: '多个选项排序并说明排序依据' },
+];
+
+/** 结构化单面阶段（PRD 6. 第二部分：结构化单面） */
+export type PanelPhaseId = 'SELF_INTRO' | 'QA' | 'COUNTER_ASK';
+/** 群面阶段（PRD 5. 第一部分：无领导小组讨论） */
+export type LgdPhaseId = 'READING' | 'INTRO' | 'FREE_DISCUSSION' | 'SUMMARY';
+export type AnyPhaseId = LgdPhaseId | PanelPhaseId | 'FINISHED';
+
+/** AI 候选人背景（PRD 5. AI 候选人背景设计规范） */
+export interface CandidateBackground {
+  /** 本科 / 硕士 / 博士 */
+  education: '本科' | '硕士' | '博士';
+  /** 学校层次描述，用于区分候选人 */
+  school: string;
+  /** 专业方向（3 人互异） */
+  major: string;
+  /** 与目标公司/岗位匹配的实习经历 */
+  internship: string;
+}
+
+/** 面试官级别（PRD：至少 manager 级别以上） */
+export type InterviewerLevel = 'manager' | 'senior_manager' | 'director' | 'vp' | 'head';
+
+/** 岗位族：用于「岗位匹配」把面试官与岗位对齐 */
+export type JobFamily = 'tech' | 'product' | 'finance' | 'supply' | 'consulting' | 'marketing' | 'hr' | 'general';
+
+/** 面试官形象卡（PRD 2. 结构化单面：6 个面试官形象） */
+export interface InterviewerCard {
+  id: string;
+  /** 形象名：科技远见者 / 产品传奇 / … */
+  archetype: string;
+  name: string;
+  title: string;
+  company: string;
+  level: InterviewerLevel;
+  yearsExperience: number;
+  jobFamilies: JobFamily[];
+  /** 形象资源 id（data/avatars.ts） */
+  avatar: string;
+  voiceId: string;
+  /** 本场角色：主持面试官 / 主面试官 / 副面试官 */
+  role: 'host' | 'lead' | 'support';
+  /** 一句话人设，喂给 LLM */
+  bio: string;
 }

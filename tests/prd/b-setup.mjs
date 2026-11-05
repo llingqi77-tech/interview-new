@@ -59,7 +59,7 @@ export const checks = [
       assert.ok(['manager', 'director', 'vp', 'head'].includes(host.level), `级别不足: ${host.level}`);
       assert.ok(host.yearsExperience >= 3, `经验不足: ${host.yearsExperience}`);
       assert.ok(host.company === '字节跳动', '主持面试官应属于目标公司');
-      assert.ok(host.jobFamily, '缺少岗位族');
+      assert.ok(Array.isArray(host.jobFamilies) && host.jobFamilies.length > 0, '缺少岗位族');
     },
   },
   {

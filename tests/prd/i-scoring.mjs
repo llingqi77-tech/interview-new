@@ -81,11 +81,11 @@ export const checks = [
       need(m, 'redistribute');
       const r = m.redistribute(m.LGD_WEIGHTS, ['visual']);
       assert.equal(r.visual, 0);
-      assert.equal(Object.values(r).reduce((a, b) => a + b, 0), 100);
+      near(Object.values(r).reduce((a, b) => a + b, 0), 100, 0.001, '剔除视觉后权重合计');
       near(r.content, 20 / 0.98, 0.02, '内容权重按比例放大');
       const p = m.redistribute(m.PANEL_WEIGHTS, ['voiceVisual']);
       assert.equal(p.voiceVisual, 0);
-      assert.equal(Object.values(p).reduce((a, b) => a + b, 0), 100);
+      near(Object.values(p).reduce((a, b) => a + b, 0), 100, 0.001, '剔除语音视觉后权重合计');
     },
   },
   {
