@@ -68,7 +68,7 @@ const CountdownRing: React.FC<{ remainingMs: number; progress: number; label: st
   const c = 2 * Math.PI * r;
   const offset = c * (1 - Math.max(0, Math.min(1, progress)));
   return (
-    <div className="relative w-16 h-16" data-testid="countdown-ring" data-remaining={remainingMs}>
+    <div className="relative w-12 h-12 md:w-16 md:h-16 shrink-0" data-testid="countdown-ring" data-remaining={remainingMs}>
       <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
         <circle cx="32" cy="32" r={r} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="5" />
         <circle
@@ -120,8 +120,8 @@ const Bubble: React.FC<{ msg: Message; streaming: boolean }> = ({ msg, streaming
     // 引导语字幕：居中展示，但保留播报人姓名与时间，便于回溯是谁在串场
     return (
       <div className="flex justify-center" data-side="center">
-        <div className="glass-chip text-[11px] text-white/60 px-3 py-1.5 max-w-[86%] text-center">
-          <span className="text-white/40 mr-1.5" data-time={msg.startMs ?? msg.timestamp}>
+        <div className="glass-chip text-[11px] text-white/60 px-3 py-1.5 max-w-[92%] md:max-w-[86%] text-center">
+          <span className="text-white/40 mr-1.5 whitespace-nowrap" data-time={msg.startMs ?? msg.timestamp}>
             {msg.senderName}
           </span>
           {msg.content}
@@ -184,34 +184,46 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
   return (
     <div className="h-full flex flex-col gap-2">
       {/* 顶部状态栏 */}
-      <div className="glass-panel px-4 py-2 flex items-center gap-4">
-        <div className="min-w-0">
+      <div className="glass-panel px-2 md:px-4 py-2 flex flex-wrap items-center gap-2 md:gap-4">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-white">{phase.label}</span>
-            <span className="text-[10px] text-white/40">
+            <span className="text-xs md:text-sm font-bold text-white whitespace-nowrap">{phase.label}</span>
+            <span className="text-[10px] text-white/40 whitespace-nowrap">
               第 {phase.index + 1}/{phase.total} 阶段
             </span>
           </div>
-          <div className="mt-1 h-1.5 w-40 rounded-full bg-white/10 overflow-hidden" data-testid="phase-progress">
+          <div
+            className="mt-1 h-1.5 w-full max-w-40 rounded-full bg-white/10 overflow-hidden"
+            data-testid="phase-progress"
+          >
             <div className="h-full bg-gradient-to-r from-cyan-400 to-violet-400" style={{ width: `${Math.round(phase.progress * 100)}%` }} />
           </div>
         </div>
-        <div className="flex-1" />
-        <button type="button" onClick={onViewTopic} className="glass-btn-ghost text-xs px-3 py-1.5">
-          查看题目
-        </button>
-        <button
-          type="button"
-          onClick={() => setMobilePanelOpen((v) => !v)}
-          className="md:hidden glass-btn-ghost text-xs px-3 py-1.5"
-          data-testid="mobile-panel-toggle"
-        >
-          题目/角色
-        </button>
-        <CountdownRing remainingMs={phase.remainingMs} progress={phase.progress} label={phase.label} />
-        <button type="button" onClick={onEnd} className="glass-btn-ghost text-xs px-3 py-1.5">
-          结束
-        </button>
+        <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={onViewTopic}
+            className="glass-btn-ghost text-[11px] md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
+          >
+            查看题目
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobilePanelOpen((v) => !v)}
+            className="md:hidden glass-btn-ghost text-[11px] px-2 py-1.5 whitespace-nowrap"
+            data-testid="mobile-panel-toggle"
+          >
+            题目/角色
+          </button>
+          <CountdownRing remainingMs={phase.remainingMs} progress={phase.progress} label={phase.label} />
+          <button
+            type="button"
+            onClick={onEnd}
+            className="glass-btn-ghost text-[11px] md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
+          >
+            结束
+          </button>
+        </div>
       </div>
 
       {/* 移动端抽屉：侧边栏在窄屏隐藏，这里给同一份信息 */}
@@ -305,30 +317,50 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
           )}
 
           {/* 底部工具条 */}
-          <div className="glass-panel px-3 py-2 flex items-center gap-2">
-            <button type="button" onClick={onToggleMute} data-active={muted} className="glass-btn-ghost text-xs px-3 py-1.5">
+          <div className="glass-panel px-2 md:px-3 py-2 flex flex-wrap items-center gap-1.5 md:gap-2">
+            <button
+              type="button"
+              onClick={onToggleMute}
+              data-active={muted}
+              className="glass-btn-ghost text-[11px] md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
+            >
               {muted ? '取消静音' : '静音'}
             </button>
-            <button type="button" onClick={onToggleCamera} data-active={cameraOn} className="glass-btn-ghost text-xs px-3 py-1.5">
+            <button
+              type="button"
+              onClick={onToggleCamera}
+              data-active={cameraOn}
+              className="glass-btn-ghost text-[11px] md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
+            >
               {cameraOn ? '关闭摄像头' : '打开摄像头'}
             </button>
             <button
               type="button"
               onClick={onBargeIn}
               data-listening={listening ? 'true' : 'false'}
-              className={`text-xs px-4 py-1.5 ${listening ? 'glass-btn-danger' : 'glass-btn-primary'}`}
+              className={`text-[11px] md:text-xs px-3 md:px-4 py-1.5 whitespace-nowrap ${
+                listening ? 'glass-btn-danger' : 'glass-btn-primary'
+              }`}
               title={INPUT_MODE_LABELS[inputMode]}
             >
               {listening ? '停止录音' : '语音输入'}
             </button>
-            <button type="button" onClick={onBargeIn} className="glass-btn-ghost text-xs px-3 py-1.5">
+            <button
+              type="button"
+              onClick={onBargeIn}
+              className="glass-btn-ghost text-[11px] md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
+            >
               打断 AI
             </button>
-            <button type="button" onClick={onToggleTextInput} data-active={textInputOpen} className="glass-btn-ghost text-xs px-3 py-1.5">
+            <button
+              type="button"
+              onClick={onToggleTextInput}
+              data-active={textInputOpen}
+              className="glass-btn-ghost text-[11px] md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
+            >
               文字输入
             </button>
-            <div className="flex-1" />
-            <span className="text-[10px] text-white/35">{INPUT_MODE_LABELS[inputMode]}</span>
+            <span className="hidden md:inline text-[10px] text-white/35 ml-auto">{INPUT_MODE_LABELS[inputMode]}</span>
           </div>
         </div>
 

@@ -231,7 +231,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
   return (
     <div className="glass-modal-backdrop" onClick={onClose} role="presentation">
       <div
-        className="glass-modal p-5 md:p-6 max-w-3xl w-full mx-4 max-h-[88vh] flex flex-col"
+        className="glass-modal p-5 md:p-6 max-w-3xl w-full mx-4 max-h-[92vh] flex flex-col"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -313,7 +313,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
               })}
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto glass-scroll pr-1 space-y-4">
+            <div className="flex-1 min-h-0 overflow-y-auto glass-scroll pr-1 pb-2 space-y-3">
               {activeGroup && (
                 <>
                   <p className="text-[11px] text-white/45 leading-relaxed">{activeGroup.description}</p>

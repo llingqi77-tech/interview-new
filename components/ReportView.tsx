@@ -208,11 +208,12 @@ const ReportView: React.FC<ReportViewProps> = ({ report, error, onRetry, onResta
 
       {locatedView && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          className="glass-modal-backdrop"
           data-testid="evidence-locate"
           onClick={() => setLocated(null)}
+          role="presentation"
         >
-          <div className="glass-panel max-w-lg w-full p-5" onClick={(e) => e.stopPropagation()}>
+          <div className="glass-modal max-w-lg w-full p-5" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
             <h3 className="font-bold text-white mb-2">定位到原话</h3>
             {locatedView.message ? (
               <div className="space-y-2">
@@ -224,7 +225,7 @@ const ReportView: React.FC<ReportViewProps> = ({ report, error, onRetry, onResta
                     }`}
                   >
                     <span className="text-[10px] text-white/40 mr-2">
-                      {m.senderName} · {formatTimestamp(m.startMs ?? m.timestamp)}
+                      {m.senderId === 'user' ? '我' : m.senderName} · {formatTimestamp(m.startMs ?? m.timestamp)}
                     </span>
                     {m.content}
                   </div>

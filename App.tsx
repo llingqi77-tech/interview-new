@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import SetupForm, { type SetupParams } from './components/SetupForm';
 import DeviceCheck, { type DeviceCheckResult } from './components/DeviceCheck';
 import RoomStage from './components/RoomStage';
@@ -48,6 +48,9 @@ const App: React.FC = () => {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [navScrolled, setNavScrolled] = useState(false);
+  const navRef = useRef<HTMLDivElement>(null);
+  /** 导航实际高度：吸顶条高度随内容（本地模式 chip / 换行）变化，写死 57px 会让内容钻到导航下面 */
+  const [navHeight, setNavHeight] = useState(57);
 
   useEffect(() => {
     const onScroll = () => setNavScrolled(window.scrollY > 8);
@@ -55,6 +58,21 @@ const App: React.FC = () => {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const sync = () => setNavHeight(el.offsetHeight);
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // 切换环节时回到顶部：否则上一页的滚动位置会让新页面标题钻到吸顶导航下面
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [state.status]);
 
   const wallet = useWalletIdentity();
 
@@ -183,30 +201,49 @@ const App: React.FC = () => {
         <div className="aurora-blob aurora-blob-c" />
       </div>
 
-      <div className={`glass-nav ${navScrolled ? 'glass-nav-scrolled' : ''} px-4 md:px-6 py-3`}>
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="text-lg font-bold text-gradient-brand tracking-tight">LGD Simulator</div>
-          <div className="flex items-center gap-3 md:gap-4">
+      <div
+        ref={navRef}
+        className={`glass-nav ${navScrolled ? 'glass-nav-scrolled' : ''} px-4 md:px-6 py-3`}
+      >
+        <div className="max-w-6xl mx-auto flex justify-between items-center gap-2">
+          <div className="text-base md:text-lg font-bold text-gradient-brand tracking-tight whitespace-nowrap shrink-0">
+            LGD Simulator
+          </div>
+          <div className="flex items-center gap-1.5 md:gap-4 min-w-0">
             {!dbAvailable && state.status !== 'IDLE' && (
-              <span className="glass-chip badge-warning text-[10px] px-2 py-0.5">本地模式（未配置数据库）</span>
+              <span className="glass-chip badge-warning text-[10px] px-2 py-0.5 whitespace-nowrap hidden sm:inline">
+                本地模式（未配置数据库）
+              </span>
             )}
             <WalletButton />
-            <button onClick={() => setShowSettings(true)} className="glass-btn-ghost text-sm px-3 py-1.5">
+            <button
+              onClick={() => setShowSettings(true)}
+              className="glass-btn-ghost text-xs md:text-sm px-2 md:px-3 py-1.5 whitespace-nowrap"
+            >
               配置
             </button>
-            <button onClick={() => setShowPrivacy(true)} className="glass-btn-ghost text-sm px-3 py-1.5">
+            <button
+              onClick={() => setShowPrivacy(true)}
+              className="glass-btn-ghost text-xs md:text-sm px-2 md:px-3 py-1.5 whitespace-nowrap"
+            >
               隐私政策
             </button>
-            <button onClick={restart} className="glass-btn-ghost text-sm px-3 py-1.5">
+            <button
+              onClick={restart}
+              className="glass-btn-ghost text-xs md:text-sm px-2 md:px-3 py-1.5 whitespace-nowrap"
+            >
               新建练习
             </button>
           </div>
         </div>
       </div>
 
-      <div className="h-[57px]" aria-hidden="true" />
+      <div style={{ height: navHeight }} aria-hidden="true" />
 
-      <div className={state.status === 'DISCUSSING' ? 'h-[calc(100vh-57px)] p-2 md:p-3' : 'p-4 md:p-6'}>
+      <div
+        className={state.status === 'DISCUSSING' ? 'p-2 md:p-3' : 'p-4 md:p-6'}
+        style={state.status === 'DISCUSSING' ? { height: `calc(100dvh - ${navHeight}px)` } : undefined}
+      >
         {state.status === 'IDLE' && (
           <div className="max-w-3xl mx-auto">
             <SetupForm onStart={startPreparation} />

@@ -56,6 +56,32 @@ export const checks = [
     },
   },
   {
+    id: 'X6', area, title: '弹窗不透明：背后页面文字不得透上来（UI 重叠回归）',
+    async run() {
+      const css = read('index.css');
+      const modal = css.slice(css.indexOf('.glass-modal {'), css.indexOf('.glass-modal {') + 600);
+      assert.ok(!/background:\s*rgb\(255 255 255 \/ 0\.12\)/.test(modal), '弹窗仍是 12% 半透明白底（会透字）');
+      assert.ok(/rgb\(38 42 68 \/ 0\.98\)|rgb\(30 34 58/.test(modal), '弹窗缺少不透明深色底');
+      // 房间题目弹窗与报告证据弹窗必须复用同一套弹窗样式
+      for (const f of ['components/RoomStage.tsx', 'components/ReportView.tsx']) {
+        const src = read(f);
+        assert.ok(/glass-modal-backdrop/.test(src), `${f} 未使用统一弹窗遮罩`);
+        assert.ok(/glass-modal\s/.test(src), `${f} 未使用统一弹窗面板`);
+      }
+    },
+  },
+  {
+    id: 'X7', area, title: '吸顶导航滚动后压暗，内容不得从导航下透出',
+    async run() {
+      const css = read('index.css');
+      const scrolled = css.slice(css.indexOf('.glass-nav-scrolled'), css.indexOf('.glass-nav-scrolled') + 300);
+      assert.ok(/rgb\(12 14 28 \/ 0\.92\)/.test(scrolled), '滚动后的导航仍是半透明（内容会透上来）');
+      const app = read('App.tsx');
+      assert.ok(/ResizeObserver/.test(app), '导航高度未动态测量（写死 57px 会错位）');
+      assert.ok(/window\.scrollTo/.test(app), '切换环节未回到顶部');
+    },
+  },
+  {
     id: 'X5', area, title: '报告页仍保留链上铸证入口（懒加载 + 守卫）',
     async run() {
       const src = read('components/ReportView.tsx');

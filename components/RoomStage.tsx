@@ -135,8 +135,8 @@ const RoomStage: React.FC<RoomStageProps> = ({
         onSkipAiIntro={() => controller.skipAiIntro()}
       />
       {topicOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setTopicOpen(false)}>
-          <div className="glass-panel max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="glass-modal-backdrop" onClick={() => setTopicOpen(false)} role="presentation">
+          <div className="glass-modal max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
             <h3 className="font-bold text-white mb-2">本场题目</h3>
             <p className="text-sm text-white/75 leading-relaxed whitespace-pre-wrap">{state.topic}</p>
             <button type="button" onClick={() => setTopicOpen(false)} className="glass-btn mt-4 px-4 py-2 text-sm">
