@@ -20,9 +20,9 @@ const PANEL = {
   'counter->end': '时间到，本场面试结束，感谢你的参与。正在为你生成评估报告，请稍候。',
 };
 
-const scriptChecks = (format, table, prefix) =>
+const scriptChecks = (format, table, prefix, offset = 0) =>
   Object.entries(table).map(([transition, text], i) => ({
-    id: `${prefix}${i + 1}`, area,
+    id: `${prefix}${i + 1 + offset}`, area,
     title: `${format === 'lgd' ? '群面' : '单面'}引导语 ${transition}`,
     async run() {
       const m = await load('engine/phaseScripts.ts');
@@ -34,7 +34,7 @@ const scriptChecks = (format, table, prefix) =>
 
 export const checks = [
   ...scriptChecks('lgd', LGD, 'E'),
-  ...scriptChecks('panel', PANEL, 'E'),
+  ...scriptChecks('panel', PANEL, 'E', 6),
   {
     id: 'E12', area, title: '引导语由 TTS 播报并以字幕气泡展示',
     async run() {
