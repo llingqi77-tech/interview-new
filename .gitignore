@@ -175,12 +175,13 @@ tripo-out/
 .cursor/
 .codex/
 
-# autoresearch 会话的 git worktree 容器（autoresearch/<session-id>/）
-# 仓库根的 autoresearch.md / .jsonl / .sh / .checks.sh / .ideas.md 是**故意入库**的：
-# jsonl 是实验记录的唯一真相源，换台机器靠它续跑；这里只挡 worktree 目录本身。
+# ============================================================
+# autoresearch 工作文件（本机优化循环的脚手架，不进 GitHub）
+# 文件保留在磁盘上，harness 照常读写，只是不跟踪。
+# 里面含本机绝对路径、账户状态、硬件限制等内部记录，不适合公开。
+# 注意：scripts/prd-conformance.mjs 与 tests/prd/*.mjs 是真正的
+# PRD 一致性测试套件（175 条），**要入库**，不要一起忽略。
+# ============================================================
+autoresearch.*
+# 会话 worktree 容器（autoresearch/<session-id>/）
 autoresearch/
-
-# autoresearch 工作文件：只在本机用，不进 GitHub
-# （文件保留在磁盘上，只是不跟踪；harness 照常读写）
-autoresearch.ideas.md
-autoresearch.checks.sh
