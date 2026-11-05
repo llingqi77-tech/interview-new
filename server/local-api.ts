@@ -19,9 +19,10 @@ const STATIC_ROUTES: Record<string, string> = {
   '/api/avatars/presets': '/api/avatars.ts',
   '/api/tts': '/api/tts.ts',
   '/api/asr': '/api/asr.ts',
-  '/api/tts-token': '/api/tts-token.ts',
-  '/api/asr-token': '/api/asr-token.ts',
+  '/api/tts-token': '/api/tts.ts',
+  '/api/asr-token': '/api/asr.ts',
   '/api/realtime-token': '/api/realtime-token.ts',
+  '/api/pay': '/api/pay.ts',
 };
 
 // Use the same dispatcher as production; it extracts the ID and action from

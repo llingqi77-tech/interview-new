@@ -92,6 +92,29 @@ export interface AvatarPreset {
   tags: string[];
 }
 
+/**
+ * 角色的文生 3D 模型条目（Hyper3D / Rodin Gen-2.5 生成）
+ * 由 scripts/gen-avatar-models.mjs 写入 data/avatarModels.ts；美术设定见 data/avatar3dCharacters.ts。
+ */
+export interface AvatarModelEntry {
+  id: string;
+  name: string;
+  /** 站内路径，如 /avatars/3d/visionary_01.glb */
+  model_url: string;
+  preview_url: string | null;
+  generator: string;
+  tier: string;
+  mesh_mode: string;
+  quality: number;
+  /** 绑骨后烘进去的动画 clip（没有绑骨则为 null） */
+  animation: string | null;
+  generation_id: string;
+  rigging_id: string | null;
+  bytes: number;
+  credits: number | null;
+  generated_at: string;
+}
+
 /** 群面阵型：lgd = 1 主持 + 3 AI 候选人 + 用户；panel = 2 或 3 位面试官 + 用户（结构化单面，默认 3） */
 export type InterviewFormat = 'lgd' | 'panel';
 

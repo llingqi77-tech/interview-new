@@ -14,8 +14,10 @@ function entrypoints(dir) {
 }
 
 const functions = entrypoints('api');
-const limit = 12;
-console.log(`Vercel functions: ${functions.length}/${limit} (Hobby)`);
+// Hobby 的 12 个函数上限是免费档约束；Pro/Enterprise 不设该限制。
+// 升级后设 VERCEL_FUNCTION_LIMIT 覆盖默认值，别让门禁继续按免费档顶格卡着。
+const limit = Number(process.env.VERCEL_FUNCTION_LIMIT ?? 12);
+console.log(`Vercel functions: ${functions.length}/${limit}${process.env.VERCEL_FUNCTION_LIMIT ? '' : ' (Hobby 默认上限)'}`);
 if (functions.length > limit) {
   console.error('Consolidate API entrypoints before deploying:\n' + functions.join('\n'));
   process.exitCode = 1;

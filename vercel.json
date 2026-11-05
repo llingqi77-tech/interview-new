@@ -6,6 +6,7 @@
   "git": {
     "deploymentEnabled": true
   },
+  "regions": ["hkg1"],
   "redirects": [
     { "source": "/app.html", "destination": "/", "permanent": true },
     { "source": "/app", "destination": "/", "permanent": true }
@@ -14,6 +15,14 @@
     {
       "source": "/api/avatars/presets",
       "destination": "/api/avatars"
+    },
+    {
+      "source": "/api/asr-token",
+      "destination": "/api/asr?__route=token"
+    },
+    {
+      "source": "/api/tts-token",
+      "destination": "/api/tts?__route=token"
     },
     {
       "source": "/api/sessions/:id/:action",

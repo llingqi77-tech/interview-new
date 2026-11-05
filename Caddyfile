@@ -1,0 +1,56 @@
+# Caddy 生产配置：自动 HTTPS + 反向代理
+#
+# 站点地址由 compose 里的 DOMAIN 决定：
+#   DOMAIN=interview.example.com  → 自动申请并续期 Let's Encrypt 证书，HTTP 强制跳 HTTPS
+#   DOMAIN=:80                    → 纯 HTTP（还没域名时的过渡态，摄像头功能会因非安全上下文失效）
+#   DOMAIN=:443                   → 自签证书（仅调试，浏览器会拦）
+
+{$DOMAIN} {
+	# ---- WebSocket：/api/realtime 需要 upgrade 长连接 ----
+	# 必须放在 /api/* 之前，否则会先被通用规则吃掉
+	@ws path /api/realtime
+	handle @ws {
+		reverse_proxy app:3000 {
+			transport http {
+				read_timeout 1h
+				write_timeout 1h
+			}
+		}
+	}
+
+	# ---- 全部 API：关闭响应缓冲 ----
+	# flush_interval -1 是必须的：Caddy 默认会攒缓冲，SSE 的逐字输出会变成一次性返回。
+	# 走 /api/tts、/api/asr 的流式音频同理，所以这里按前缀一网打尽，而不是逐个端点列举
+	# （漏一个端点 = 该功能静默失去流式效果）。
+	handle /api/* {
+		reverse_proxy app:3000 {
+			flush_interval -1
+			# LLM 首字延迟实测 7-16s，推理链长的模型更久，读超时要给够
+			transport http {
+				read_timeout 300s
+				write_timeout 300s
+				dial_timeout 10s
+			}
+		}
+	}
+
+	# ---- 静态资源与 SPA ----
+	# 交给应用容器处理：单一真相源，避免 Caddy 与应用各有一套路由规则后漂移
+	handle {
+		encode zstd gzip
+		reverse_proxy app:3000
+	}
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+}

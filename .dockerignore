@@ -1,0 +1,25 @@
+# 构建上下文瘦身：这些都不该进镜像，传过去只会让构建变慢并把密钥带进层缓存
+.git
+.github
+node_modules
+**/node_modules
+dist
+.vite
+contracts
+indexer
+screenshots
+docs
+tododocs
+tests
+liquid-glass
+.agents
+.pi
+.env
+.env.*
+!.env.example
+*.log
+*.md
+!README.md
+scripts/e2e-*
+.e2e-*
+coverage

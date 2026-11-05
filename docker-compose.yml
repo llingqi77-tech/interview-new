@@ -1,0 +1,98 @@
+# ECS 生产编排：Caddy（TLS + 反代） + 应用容器 + 可选同机 Postgres
+#
+# 常用命令：
+#   docker compose --env-file deploy.env up -d                      # 用外部数据库
+#   docker compose --env-file deploy.env --profile localdb up -d    # 同机起 Postgres
+#   docker compose logs -f app
+#   docker compose ps
+#
+# 镜像与提交号由 CI 写入 deploy.env（见 scripts/ecs/deploy.sh）
+name: interview
+
+services:
+  app:
+    image: ${APP_IMAGE:?APP_IMAGE 未设置，应由 CI 写入 deploy.env}
+    restart: unless-stopped
+    env_file:
+      - ./app.env          # DEEPSEEK_* / STEPFUN_* / DATABASE_URL / VITE_*（不进仓库）
+    environment:
+      PORT: "3000"
+      HOST: 0.0.0.0
+      TZ: Asia/Shanghai
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
+      # 单容器只有一个 pg Pool，默认 max:3 会把并发压死在 5s 超时上
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+    expose:
+      - "3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 25s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false   # 用外部数据库时没有 db 服务，不能因为缺失就卡住启动
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      # 大陆机房域名未备案时，80 会被拦；用 HTTP_PORT=8080 走非标端口冒烟
+      - "${HTTP_PORT:-80}:80"
+      - "443:443"
+      - "443:443/udp"     # HTTP/3
+    environment:
+      DOMAIN: ${DOMAIN:-:80}   # 没域名时置 :80 走纯 HTTP，有域名自动签证书
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data        # 证书存这里，删了这个卷会重新签发并触发 Let's Encrypt 频率限制
+      - caddy_config:/config
+    depends_on:
+      - app
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # 同机数据库：只在 --profile localdb 时启动。2C2G 的机器上只建议演示期使用。
+  # 生产更稳的做法是把这个服务删掉，DATABASE_URL 指向云 RDS 或 Neon。
+  db:
+    image: postgres:17-alpine
+    profiles: ["localdb"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-interview_db}
+      POSTGRES_USER: ${POSTGRES_USER:-interview}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?localdb 模式必须设置 POSTGRES_PASSWORD}
+      TZ: Asia/Shanghai
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # 首次启动自动按序执行迁移脚本；已存在的库不会重跑
+      - ./db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-interview} -d ${POSTGRES_DB:-interview_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  caddy_data:
+  caddy_config:
+  pgdata:

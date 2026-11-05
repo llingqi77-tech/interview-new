@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { isStepFunConfigured, STEPFUN_CONFIG } from './_lib/stepfun.ts';
+import { issueToken, isStepFunConfigured, STEPFUN_CONFIG } from './_lib/stepfun.ts';
 import { createSseWriter, pipeUpstreamSse } from './_lib/sse.ts';
-import { getClientIp } from './_lib/http.ts';
+import { getClientIp, isTokenRoute } from './_lib/http.ts';
 import { checkRateLimit } from './_lib/ratelimit.ts';
 
 /**
@@ -15,6 +15,28 @@ const STEP_TTS_URL = 'https://api.stepfun.com/v1/audio/speech';
 
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
+  // /api/tts-token 兼容路由（原独立函数已并入本文件，见 vercel.json rewrite）
+  if (isTokenRoute(request, 'tts')) {
+    if (request.method !== 'POST') {
+      return response.status(405).json({ error: 'Method not allowed' });
+    }
+    if (!isStepFunConfigured()) {
+      return response.status(503).json({
+        error: 'STEPFUN_NOT_CONFIGURED',
+        message: '服务端未配置 STEPFUN_API_KEY，语音合成不可用，将降级为文字/浏览器语音',
+        fallback: 'webspeech',
+      });
+    }
+    const voiceId = typeof request.body?.voice_id === 'string' ? request.body.voice_id : undefined;
+    const issued = issueToken('tts', voiceId ? { voice_id: voiceId } : {});
+    return response.status(200).json({
+      ...issued,
+      endpoint: STEPFUN_CONFIG.tts.endpoint,
+      model: STEPFUN_CONFIG.tts.model,
+      fallback_models: [...STEPFUN_CONFIG.tts.fallbackModels],
+      voice_id: voiceId ?? null,
+    });
+  }
   if (request.method !== 'POST') {
     return response.status(405).json({ error: 'Method not allowed' });
   }

@@ -96,3 +96,9 @@ indexer/.env
 
 # E2E 本地链验证临时产物
 .e2e-*
+
+# pi 工具本地状态与检索缓存（不要入库）
+.pi/
+
+# 3D 资产产线的工作区（模型成品在 public/avatars/3d/，这里只留任务状态与中间产物）
+tripo-out/
