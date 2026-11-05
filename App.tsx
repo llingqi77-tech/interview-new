@@ -1,25 +1,23 @@
-import React, { useEffect, useState } from 'react';
-import SetupForm from './components/SetupForm';
+import React, { useEffect, useRef, useState } from 'react';
+import SetupForm, { type SetupParams } from './components/SetupForm';
 import DeviceCheck, { type DeviceCheckResult } from './components/DeviceCheck';
-import VoiceRoom from './components/VoiceRoom';
-import EvidenceReport from './components/EvidenceReport';
+import RoomStage from './components/RoomStage';
+import ReportView from './components/ReportView';
 import PrivacyPolicy from './components/PrivacyPolicy';
-import PayModal from './components/PayModal';
+import SettingsModal from './components/SettingsModal';
 import WalletButton from './components/WalletButton';
 import { useWalletIdentity } from './src/wallet/context';
-import { SimulationState, InterviewFormat, Message, GameEvent, RoleCard, ReportV15, FeedbackData } from './types';
-import { generateReportV15, generateFeedback } from './services/geminiService';
-import {
-  createSession,
-  updateSessionStatus,
-  deleteSession,
-  saveReport,
-  triggerAnalyze,
-} from './src/api';
+import type { GameEvent, InterviewFormat, InterviewerCard, Message, RoleCard, SimulationState, VisualFeatureRow } from './types';
+import { interviewerToRoleCard } from './engine/roster';
+import type { InterviewReport } from './engine/reportEngine';
+import { REPORT_LOADING_HINT, REPORT_LOADING_TEXT } from './engine/reportCopy';
+import type { InputMode } from './engine/inputMode';
+import { generateInterviewReport } from './services/geminiService';
+import { createSession, updateSessionStatus, deleteSession, saveReport, triggerAnalyze } from './src/api';
 
 /**
- * 应用主流程（PRD 5.2 目标流程）
- * SetupForm → DeviceCheck → VoiceRoom（倒计时四阶段）→ EvidenceReport（v1.5）
+ * 应用主流程（PRD 1. 整体流程总览）
+ * IDLE 练习配置 → PREPARING 设备检测 → DISCUSSING 面试房间 → FINISHED 面后报告
  * 降级路径：无麦克风 → 纯文字；无摄像头 → 纯语音；弱网 → 纯语音/纯文字。
  */
 
@@ -30,42 +28,59 @@ const App: React.FC = () => {
     company: '',
     status: 'IDLE',
   });
+  const [setup, setSetup] = useState<SetupParams | null>(null);
   const [roles, setRoles] = useState<RoleCard[]>([]);
-  const [topicType, setTopicType] = useState('business_case');
+  const [interviewers, setInterviewers] = useState<InterviewerCard[]>([]);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [consent, setConsent] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [inputMode, setInputMode] = useState<InputMode>('realtime');
+  const [degradedReason, setDegradedReason] = useState<string | undefined>(undefined);
   const [dbAvailable, setDbAvailable] = useState(true);
 
-  const [report, setReport] = useState<ReportV15 | null>(null);
+  const [report, setReport] = useState<InterviewReport | null>(null);
   const [finishedMessages, setFinishedMessages] = useState<Message[]>([]);
   const [finishedEvents, setFinishedEvents] = useState<GameEvent[]>([]);
   const [sessionStartAt, setSessionStartAt] = useState(0);
   const [isLoadingFeedback, setIsLoadingFeedback] = useState(false);
   const [feedbackError, setFeedbackError] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
-  const [showPay, setShowPay] = useState(false);
-  // 导航吸顶：滚动后背景透明度 white/6 → white/10
+  const [showSettings, setShowSettings] = useState(false);
   const [navScrolled, setNavScrolled] = useState(false);
+  const navRef = useRef<HTMLDivElement>(null);
+  /** 导航实际高度：吸顶条高度随内容（本地模式 chip / 换行）变化，写死 57px 会让内容钻到导航下面 */
+  const [navHeight, setNavHeight] = useState(57);
+
   useEffect(() => {
     const onScroll = () => setNavScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
-  // Q-N1：Para 钱包地址作为免登录用户标识（未配置 Para 时恒为匿名）
+
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const sync = () => setNavHeight(el.offsetHeight);
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // 切换环节时回到顶部：否则上一页的滚动位置会让新页面标题钻到吸顶导航下面
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [state.status]);
+
   const wallet = useWalletIdentity();
 
-  // ---- 准备页 → 设备检测 ----
-  const startPreparation = (params: {
-    topic: string;
-    jobTitle: string;
-    company: string;
-    topicType: string;
-    format: InterviewFormat;
-    roles: RoleCard[];
-  }) => {
+  // ---- 练习配置 → 设备检测 ----
+  const startPreparation = (params: SetupParams) => {
+    setSetup(params);
+    setRoles(params.format === 'lgd' ? params.roles : params.interviewers.map(interviewerToRoleCard));
+    setInterviewers(params.format === 'panel' ? params.interviewers : []);
     setState((prev) => ({
       ...prev,
       topic: params.topic,
@@ -74,8 +89,6 @@ const App: React.FC = () => {
       format: params.format,
       status: 'PREPARING',
     }));
-    setRoles(params.roles);
-    setTopicType(params.topicType);
   };
 
   // ---- 设备检测完成 → 创建会话 → 进入房间 ----
@@ -83,13 +96,14 @@ const App: React.FC = () => {
     setConsent(result.consentSaveTranscript);
     setCameraEnabled(result.cameraEnabled);
     setFacingMode(result.facingMode);
+    setInputMode(result.inputMode ?? 'realtime');
+    setDegradedReason(result.degradedReason);
 
-    // 创建会话（数据库不可用时降级本地模式）
     const session = await createSession({
       company: state.company,
       jobTitle: state.jobTitle,
       topic: state.topic,
-      topicType,
+      topicType: setup?.topicType ?? 'business_case',
       format: state.format,
       roles: roles.map((r) => r.id),
       voiceEnabled: result.voiceEnabled,
@@ -106,12 +120,12 @@ const App: React.FC = () => {
     setState((prev) => ({ ...prev, status: 'DISCUSSING' }));
   };
 
-  // ---- 群面结束 → 面后分析 → 报告 v1.5 ----
+  // ---- 面试结束 → 面后分析 → 报告 ----
   const finishSimulation = async (
     history: Message[],
     events: GameEvent[],
     startedAt: number,
-    visualRows: import('./types').VisualFeatureRow[] = []
+    visualRows: VisualFeatureRow[] = []
   ) => {
     setState((prev) => ({ ...prev, status: 'FINISHED' }));
     setFinishedMessages(history);
@@ -123,14 +137,13 @@ const App: React.FC = () => {
     const durationMs = Date.now() - startedAt;
 
     try {
-      let reportV15: ReportV15 | null = null;
+      let generated: InterviewReport | null = null;
       if (sessionId && consent) {
-        // 服务端分析：读 DB transcripts/events/visual_features → 规则引擎 + LLM → 已落库
-        reportV15 = await triggerAnalyze(sessionId);
+        generated = await triggerAnalyze(sessionId);
       }
-      if (!reportV15) {
-        // 客户端兜底（本地模式 / 服务端异常）：用会话内存数据生成，需手动落库
-        reportV15 = await generateReportV15({
+      if (!generated) {
+        generated = await generateInterviewReport({
+          format: state.format,
           topic: state.topic,
           jobTitle: state.jobTitle,
           messages: history,
@@ -141,50 +154,38 @@ const App: React.FC = () => {
           sessionId,
         });
         if (sessionId && consent) {
-          saveReport({ sessionId, report: reportV15 });
+          void saveReport({ sessionId, report: generated });
         }
       }
-      setReport(reportV15);
+      setReport(generated);
     } catch (e) {
-      console.error('报告 v1.5 生成失败:', e);
+      console.error('面后报告生成失败:', e);
       setFeedbackError(true);
     }
 
-    // 更新会话状态
-    if (sessionId) {
-      updateSessionStatus(sessionId, 'FINISHED');
-    }
+    if (sessionId) void updateSessionStatus(sessionId, 'FINISHED');
     setIsLoadingFeedback(false);
   };
 
-  /** 旧 4 字段报告（冗余展示）：EvidenceReport 内按需懒加载，不再随收尾无条件消耗一次 LLM 调用 */
-  const loadLegacyFeedback = () => generateFeedback(state.topic, state.jobTitle, finishedMessages);
-
-  const handleDeleteRecords = async (id: number): Promise<boolean> => {
-    return deleteSession(id);
-  };
+  const handleDeleteRecords = async (id: number): Promise<boolean> => deleteSession(id);
 
   const restart = () => {
-    // 中途退出房间：把会话收尾（否则库里永远留着 status='DISCUSSING' 的孤儿会话）
     if (sessionId && state.status === 'DISCUSSING') {
       void updateSessionStatus(sessionId, 'FINISHED');
     }
-    setState({
-      topic: '',
-      jobTitle: '',
-      company: '',
-      status: 'IDLE',
-    });
+    setState({ topic: '', jobTitle: '', company: '', status: 'IDLE' });
+    setSetup(null);
     setRoles([]);
+    setInterviewers([]);
     setSessionId(null);
     setReport(null);
     setFinishedMessages([]);
     setFinishedEvents([]);
+    setFeedbackError(false);
   };
 
   return (
     <div className="min-h-screen">
-      {/* 液态折射 SVG 位移滤镜（全页挂载一次，供 .liquid 引用） */}
       <svg aria-hidden="true" focusable="false" className="absolute w-0 h-0 overflow-hidden">
         <defs>
           <filter id="glass-distortion">
@@ -194,42 +195,55 @@ const App: React.FC = () => {
         </defs>
       </svg>
 
-      {/* 背景系统：深色径向渐变 + 极光光斑（玻璃感的依托） */}
       <div className="aurora-stage" aria-hidden="true">
         <div className="aurora-blob aurora-blob-a" />
         <div className="aurora-blob aurora-blob-b" />
         <div className="aurora-blob aurora-blob-c" />
       </div>
 
-      {/* 顶部导航：吸顶玻璃条 */}
-      <div className={`glass-nav ${navScrolled ? 'glass-nav-scrolled' : ''} px-4 md:px-6 py-3`}>
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="text-lg font-bold text-gradient-brand tracking-tight">LGD Simulator</div>
-          <div className="flex items-center gap-3 md:gap-4">
+      <div
+        ref={navRef}
+        className={`glass-nav ${navScrolled ? 'glass-nav-scrolled' : ''} px-4 md:px-6 py-3`}
+      >
+        <div className="max-w-6xl mx-auto flex justify-between items-center gap-2">
+          <div className="text-base md:text-lg font-bold text-gradient-brand tracking-tight whitespace-nowrap shrink-0">
+            LGD Simulator
+          </div>
+          <div className="flex items-center gap-1.5 md:gap-4 min-w-0">
             {!dbAvailable && state.status !== 'IDLE' && (
-              <span className="glass-chip badge-warning text-[10px] px-2 py-0.5">
+              <span className="glass-chip badge-warning text-[10px] px-2 py-0.5 whitespace-nowrap hidden sm:inline">
                 本地模式（未配置数据库）
               </span>
             )}
             <WalletButton />
-            <button onClick={() => setShowPay(true)} className="glass-btn-primary text-sm px-3 py-1.5">
-              购买次数
+            <button
+              onClick={() => setShowSettings(true)}
+              className="glass-btn-ghost text-xs md:text-sm px-2 md:px-3 py-1.5 whitespace-nowrap"
+            >
+              配置
             </button>
-            <button onClick={() => setShowPrivacy(true)} className="glass-btn-ghost text-sm px-3 py-1.5">
+            <button
+              onClick={() => setShowPrivacy(true)}
+              className="glass-btn-ghost text-xs md:text-sm px-2 md:px-3 py-1.5 whitespace-nowrap"
+            >
               隐私政策
             </button>
-            <button onClick={restart} className="glass-btn-ghost text-sm px-3 py-1.5">
+            <button
+              onClick={restart}
+              className="glass-btn-ghost text-xs md:text-sm px-2 md:px-3 py-1.5 whitespace-nowrap"
+            >
               新建练习
             </button>
           </div>
         </div>
       </div>
 
-      {/* 吸顶导航占位（原导航在流内高度 57px） */}
-      <div className="h-[57px]" aria-hidden="true" />
+      <div style={{ height: navHeight }} aria-hidden="true" />
 
-      {/* 主内容 */}
-      <div className={state.status === 'DISCUSSING' ? 'h-[calc(100vh-57px)]' : 'p-4 md:p-6'}>
+      <div
+        className={state.status === 'DISCUSSING' ? 'p-2 md:p-3' : 'p-4 md:p-6'}
+        style={state.status === 'DISCUSSING' ? { height: `calc(100dvh - ${navHeight}px)` } : undefined}
+      >
         {state.status === 'IDLE' && (
           <div className="max-w-3xl mx-auto">
             <SetupForm onStart={startPreparation} />
@@ -244,14 +258,18 @@ const App: React.FC = () => {
 
         {state.status === 'DISCUSSING' && (
           <div className="max-w-7xl mx-auto h-full">
-            <VoiceRoom
+            <RoomStage
               state={state}
               roles={roles}
-              format={state.format}
+              interviewers={interviewers}
+              format={state.format ?? 'lgd'}
               sessionId={sessionId}
               consentSaveTranscript={consent}
               cameraEnabled={cameraEnabled}
               facingMode={facingMode}
+              inputMode={inputMode}
+              degradedReason={degradedReason}
+              keyPoints={setup?.keyPoints ?? []}
               onFinish={finishSimulation}
               onExit={restart}
             />
@@ -263,48 +281,33 @@ const App: React.FC = () => {
             {isLoadingFeedback ? (
               <div className="flex flex-col items-center justify-center py-20">
                 <div className="relative">
-                  <div className="w-20 h-20 border-4 border-white/10 border-t-brand rounded-full animate-spin"></div>
+                  <div className="w-20 h-20 border-4 border-white/10 border-t-brand rounded-full animate-spin" />
                   <div className="absolute inset-0 flex items-center justify-center text-gradient-brand font-bold">AI</div>
                 </div>
                 <div className="mt-6 text-center">
-                  <h3 className="text-xl font-bold text-white">面试官正在整理评估报告...</h3>
-                  <p className="text-white/60 mt-2">规则引擎实算指标 + AI 语义分析 + 证据池生成中（目标 ≤30 秒）</p>
+                  <h3 className="text-xl font-bold text-white">{REPORT_LOADING_TEXT}</h3>
+                  <p className="text-white/60 mt-2">{REPORT_LOADING_HINT}（目标 ≤20 秒）</p>
                 </div>
               </div>
-            ) : report ? (
-              <EvidenceReport
-                report={report}
-                loadLegacy={feedbackError ? undefined : loadLegacyFeedback}
-                messages={finishedMessages}
-                events={finishedEvents}
-                sessionStartAt={sessionStartAt}
-                sessionId={sessionId}
-                onRestart={restart}
-                onDeleteRecords={handleDeleteRecords}
-              />
             ) : (
-              <div className="text-center p-8 glass-panel">
-                <h2 className="text-2xl font-bold text-red-300 mb-4">反馈生成失败</h2>
-                <p className="text-white/60 mb-6">请检查网络后重试（LLM 服务异常时会自动降级）</p>
-                <button onClick={restart} className="glass-btn px-6 py-2">
-                  返回主页
-                </button>
-              </div>
+              <ReportView
+                report={report}
+                error={feedbackError ? '报告生成失败，请重试' : null}
+                onRetry={() => void finishSimulation(finishedMessages, finishedEvents, sessionStartAt)}
+                messages={finishedMessages}
+                onRestart={restart}
+                onDelete={() => {
+                  if (sessionId) void handleDeleteRecords(sessionId);
+                  restart();
+                }}
+              />
             )}
           </div>
         )}
       </div>
 
       {showPrivacy && <PrivacyPolicy onClose={() => setShowPrivacy(false)} />}
-
-      {showPay && (
-        <PayModal
-          open={showPay}
-          onClose={() => setShowPay(false)}
-          walletAddress={wallet.address}
-          sessionId={sessionId}
-        />
-      )}
+      {showSettings && <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />}
     </div>
   );
 };

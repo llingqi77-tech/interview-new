@@ -281,7 +281,9 @@ details.glass-details[open] > .glass-details-body {
   transition: background-color 0.3s ease;
 }
 .glass-nav-scrolled {
-  background: rgb(255 255 255 / 0.10);
+  /* 滚动后必须压暗：否则页面内容从半透明导航下面透上来，看起来像重叠 */
+  background: rgb(12 14 28 / 0.92);
+  border-bottom-color: rgb(255 255 255 / 0.14);
 }
 
 /* ============================================================
@@ -521,16 +523,18 @@ details.glass-details[open] > .glass-details-body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgb(0 0 0 / 0.60);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: rgb(0 0 0 / 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   animation: glass-fade-in 0.2s ease both;
+  /* 独立层叠上下文：避免子元素 backdrop-filter 被父级吃掉 */
+  isolation: isolate;
 }
 .glass-modal {
   position: relative;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  background: rgb(255 255 255 / 0.12);
+  /* 弹窗必须不透明：父级 backdrop-filter 会吃掉子级的 backdrop-filter，
+     半透明底会让背后页面文字透上来，形成重叠 */
+  background: linear-gradient(180deg, rgb(38 42 68 / 0.98) 0%, rgb(20 22 40 / 0.99) 100%);
   border: 1px solid rgb(255 255 255 / 0.18);
   border-radius: 2rem;
   box-shadow: 0 24px 80px rgb(0 0 0 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.18);
@@ -648,9 +652,13 @@ details.glass-details[open] > .glass-details-body {
   }
   .glass-panel,
   .glass-card,
-  .glass-dock,
-  .glass-modal {
+  .glass-dock {
     background: rgb(15 23 42 / 0.80);
+    border-color: rgb(255 255 255 / 0.10);
+  }
+  /* 弹窗在移动端同样必须不透明（否则背后文字透上来） */
+  .glass-modal {
+    background: linear-gradient(180deg, rgb(30 34 58 / 0.99) 0%, rgb(15 18 34 / 1) 100%);
     border-color: rgb(255 255 255 / 0.10);
   }
   /* 移动端关掉位移滤镜，发言人呼吸/光斑保留（transform/paint 级开销） */

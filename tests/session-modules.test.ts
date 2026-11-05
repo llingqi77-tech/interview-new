@@ -144,10 +144,13 @@ test('已释放的会话不再接收新发言，也不把在途台词落库', as
   };
   const controller = new SessionController(deps);
   controller.forcePhaseForTest({
+    format: 'lgd',
     phaseIndex: 2,
     phaseStartedAt: Date.now(),
     openingIndex: 4,
     openingStartedAt: Date.now(),
+    warned: false,
+    wrapped: false,
     finished: false,
   });
   const turn = controller.triggerAITurn(cards[0], { force: true });

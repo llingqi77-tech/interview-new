@@ -20,6 +20,7 @@ import { stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { handleRealtimeUpgrade, isRealtimeUpgradePath } from './realtime-proxy.ts';
+import { loadRuntimeConfigSync } from '../api/_lib/runtimeConfig.ts';
 
 type ApiHandler = (req: unknown, res: unknown) => unknown | Promise<unknown>;
 
@@ -34,6 +35,9 @@ const DIST = join(ROOT, 'dist');
 const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? '0.0.0.0';
 const SERVE_STATIC = process.env.SERVE_STATIC !== '0';
+
+// 设置页写入的运行时配置覆盖环境变量（页面填的 key 优先，清空则回落）
+loadRuntimeConfigSync();
 
 /** 与 server/local-api.ts 的 STATIC_ROUTES 保持一致 */
 const STATIC_ROUTES: Record<string, string> = {
@@ -50,6 +54,7 @@ const STATIC_ROUTES: Record<string, string> = {
   '/api/asr-token': 'api/asr.ts',
   '/api/realtime-token': 'api/realtime-token.ts',
   '/api/pay': 'api/pay.ts',
+  '/api/settings': 'api/settings.ts',
 };
 
 /** 与 server/local-api.ts 的 DYNAMIC_ROUTES 保持一致；聚合路由自己解析 id/action */

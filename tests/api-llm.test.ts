@@ -198,7 +198,7 @@ test('/api/llm analyze：规则引擎 + LLM 语义分合并', async () => {
   const report = JSON.parse(res.body);
   assert.equal(report.session_id, 1);
   assert.ok(report.overall_score > 0);
-  assert.equal(report.dimensions.content.max, 40);
+  assert.equal(report.dimensions.content.max, 100);
   assert.ok(report.dimensions.content.evidence.length > 0);
 });
 

@@ -53,9 +53,9 @@ async function driveTicks(c: SessionController, ms: number): Promise<void> {
   }
 }
 
-const FREE_DISCUSSION = { phaseIndex: 2, phaseStartedAt: Date.now(), openingIndex: 4, openingStartedAt: Date.now(), finished: false };
-const OPENING = { phaseIndex: 1, phaseStartedAt: Date.now(), openingIndex: 0, openingStartedAt: Date.now(), finished: false };
-const READING = { phaseIndex: 0, phaseStartedAt: Date.now(), openingIndex: 0, openingStartedAt: Date.now(), finished: false };
+const FREE_DISCUSSION = { format: 'lgd' as const, phaseIndex: 2, phaseStartedAt: Date.now(), openingIndex: 4, openingStartedAt: Date.now(), warned: false, wrapped: false, finished: false };
+const OPENING = { format: 'lgd' as const, phaseIndex: 1, phaseStartedAt: Date.now(), openingIndex: 0, openingStartedAt: Date.now(), warned: false, wrapped: false, finished: false };
+const READING = { format: 'lgd' as const, phaseIndex: 0, phaseStartedAt: Date.now(), openingIndex: 0, openingStartedAt: Date.now(), warned: false, wrapped: false, finished: false };
 
 function makeDeps(overrides: Partial<SessionDeps> = {}): SessionDeps {
   return {
@@ -120,22 +120,24 @@ test('缺陷回归 · 打断：用户在 AI 生成期间插话 → 这句台词�
   c.dispose();
 });
 
+const SELF_INTRO = { ...OPENING, phaseIndex: 0 };
+
 test('缺陷回归 · panel：自我介绍没说完时不进问答；审题阶段说过话也不算数', async () => {
   // 场景 A：OPENING 阶段用户说了很长的话（估算还要说很久）→ 不应进问答
   const c1 = new SessionController(makeDeps({ format: 'panel', roles: cards.slice(0, 2), panelOpeningAdvanceMs: 20 }));
-  c1.forcePhaseForTest({ ...OPENING, phaseStartedAt: Date.now() });
+  c1.forcePhaseForTest({ ...SELF_INTRO, phaseStartedAt: Date.now() });
   c1.sendTextMessage('我'.repeat(200)); // 估算发言时长 ~71s
   await driveTicks(c1, 300);
-  assert.equal(c1.store.getSnapshot().phase.phaseIndex, 1, '用户还在说话时不应切到问答阶段');
+  assert.equal(c1.store.getSnapshot().phase.phaseIndex, 0, '用户还在说话时不应切到问答阶段');
   c1.dispose();
 
   // 场景 B：审题阶段（OPENING 之前）说过话 → 自我介绍机会不能被吞掉
   const c2 = new SessionController(makeDeps({ format: 'panel', roles: cards.slice(0, 2), panelOpeningAdvanceMs: 20 }));
   c2.forcePhaseForTest({ ...READING, phaseStartedAt: Date.now() });
   c2.sendTextMessage('读题阶段先说了一句');
-  c2.forcePhaseForTest({ ...OPENING, phaseStartedAt: Date.now() }); // 随后进入自我介绍阶段
+  c2.forcePhaseForTest({ ...SELF_INTRO, phaseStartedAt: Date.now() }); // 随后进入自我介绍阶段
   await driveTicks(c2, 300);
-  assert.equal(c2.store.getSnapshot().phase.phaseIndex, 1, '审题阶段的发言不得被当成「自我介绍已完成」');
+  assert.equal(c2.store.getSnapshot().phase.phaseIndex, 0, '审题阶段的发言不得被当成「自我介绍已完成」');
   c2.dispose();
 });
 
@@ -175,10 +177,10 @@ test('缺陷回归 · StrictMode 双挂载：dispose 后再次 init 必须能重
 
 test('缺陷回归 · panel：自我介绍说完后自动进入问答', async () => {
   const c = new SessionController(makeDeps({ format: 'panel', roles: cards.slice(0, 2), panelOpeningAdvanceMs: 20 }));
-  c.forcePhaseForTest({ ...OPENING, phaseStartedAt: Date.now() });
+  c.forcePhaseForTest({ ...SELF_INTRO, phaseStartedAt: Date.now() });
   c.sendTextMessage('开场'); // 2 字 → 估算发言 ~800ms
   await driveTicks(c, 1200);
-  assert.equal(c.store.getSnapshot().phase.phaseIndex, 2, '自我介绍结束（估算说完 + 等待窗）后应进入问答阶段');
+  assert.equal(c.store.getSnapshot().phase.phaseIndex, 1, '自我介绍结束（估算说完 + 等待窗）后应进入问答阶段');
   c.dispose();
 });
 
@@ -515,17 +517,16 @@ test('缺陷回归 · DeviceCheck：麦克风流与摄像头流分开持有，�
   assert.ok(!/streamRef\.current = stream/.test(dc), '不得再用一个 ref 覆盖两条流');
 });
 
-test('缺陷回归 · DiscussionPanel：ASR 最终转写不得写两遍', () => {
-  const panel = read('components/DiscussionPanel.tsx');
+test('缺陷回归 · 房间：ASR 最终转写不得写两遍', () => {
+  const panel = read('components/RoomStage.tsx') + read('src/session/sessionController.ts');
   assert.ok(/asrFinalRef/.test(panel), '缺少 ASR 最终转写去重标记');
   assert.ok(/finalText !== asrFinalRef\.current/.test(panel), '停止录音时不得重复追加已由回调写入的转写');
 });
 
 test('缺陷回归 · SetupForm：清空题目不得把输入框自己卸载掉', () => {
   const setup = read('components/SetupForm.tsx');
-  assert.ok(/topicShown/.test(setup), '缺少题目卡展开标记');
-  assert.ok(
-    /\{topicShown && \(/.test(setup),
-    '题目卡必须由 topicShown 控制（不能由 topic 内容控制，否则清空即卸载输入框）'
-  );
+  // 题目文本框必须无条件渲染（不能由 topic 内容控制，否则清空即卸载输入框、AI 流式输出无处可写）
+  assert.ok(/<textarea/.test(setup), '缺少题目文本框');
+  assert.ok(!/\{topic && \(/.test(setup), '题目文本框不得由 topic 内容控制');
+  assert.ok(!/\{topic\.length > 0 && \(/.test(setup), '题目文本框不得由 topic 长度控制');
 });

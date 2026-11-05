@@ -1,4 +1,4 @@
-import type { RoleCard } from '../types';
+import type { CandidateBackground, RoleCard } from '../types';
 
 /**
  * 首发 12 张角色卡（PRD 附录 A.2，字段结构见 A.1）
@@ -331,4 +331,150 @@ export function cardDisplayRole(card: RoleCard): 'AGGRESSIVE' | 'STRUCTURED' | '
 
 export function findRoleCard(id: string): RoleCard | undefined {
   return ROLE_CARDS.find((c) => c.id === id);
+}
+
+// ============================================================
+// AI 候选人背景生成（PRD 5. AI 候选人背景设计规范）
+// 学历本科及以上且层次有区别 / 专业互异 / 实习与目标公司岗位匹配 / 三人互不相同
+// ============================================================
+
+const CANDIDATE_NAMES = [
+  '林清', '周野', '苏芮', '陈嘉禾', '许知远', '沈亦舟',
+  '顾南', '唐棠', '白露', '程野', '叶青', '罗一鸣',
+];
+
+const CANDIDATE_MAJORS = [
+  '工商管理', '经济学', '计算机科学与技术', '统计学', '市场营销',
+  '工业工程', '金融学', '心理学', '新闻传播学', '信息管理与信息系统',
+  '物流管理', '社会学',
+];
+
+const CANDIDATE_SCHOOLS = [
+  '985 院校', '211 院校', '双一流院校', '海外 QS 前 100', '财经类强校', '理工类强校',
+];
+
+/** 学历组合：保证 3 人里至少两种层次 */
+const EDUCATION_COMBOS: CandidateBackground['education'][][] = [
+  ['本科', '硕士', '本科'],
+  ['硕士', '本科', '博士'],
+  ['本科', '硕士', '硕士'],
+  ['硕士', '博士', '本科'],
+  ['本科', '博士', '硕士'],
+];
+
+/** 候选人可用音色（主持面试官保留 voice_05，保证每人独立音色） */
+const CANDIDATE_VOICES = [
+  STEPFUN_VOICE_IDS.voice_01,
+  STEPFUN_VOICE_IDS.voice_02,
+  STEPFUN_VOICE_IDS.voice_03,
+  STEPFUN_VOICE_IDS.voice_04,
+];
+
+/** 候选人形象（与 12 张角色卡解耦，按岗位行业挑 3 个不同形象） */
+const CANDIDATE_AVATARS = ['candidate_01', 'candidate_02', 'candidate_03', 'candidate_04', 'candidate_05'];
+
+function seededRandom(seed: number): () => number {
+  let s = Math.abs(Math.floor(seed)) % 2147483647;
+  if (s === 0) s = 1;
+  return () => {
+    s = (s * 16807) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+function pickDistinct<T>(pool: T[], count: number, rand: () => number): T[] {
+  const copy = [...pool];
+  const out: T[] = [];
+  while (out.length < count && copy.length > 0) {
+    const i = Math.floor(rand() * copy.length) % copy.length;
+    out.push(copy.splice(i, 1)[0]);
+  }
+  return out;
+}
+
+export interface GenerateCandidatesInput {
+  company: string;
+  jobTitle: string;
+  seed?: number;
+}
+
+/**
+ * 按目标公司与岗位生成 3 位 AI 候选人。
+ * 同一 seed 结果可复现；不同 seed 背景不同。
+ */
+export function generateCandidates(input: GenerateCandidatesInput): RoleCard[] {
+  const seed = input.seed ?? Date.now();
+  const rand = seededRandom(seed);
+  const company = input.company || '目标公司';
+  const jobTitle = input.jobTitle || '目标岗位';
+
+  const names = pickDistinct(CANDIDATE_NAMES, 3, rand);
+  const majors = pickDistinct(CANDIDATE_MAJORS, 3, rand);
+  const schools = pickDistinct(CANDIDATE_SCHOOLS, 3, rand);
+  const voices = pickDistinct(CANDIDATE_VOICES, 3, rand);
+  const avatars = pickDistinct(CANDIDATE_AVATARS, 3, rand);
+  const combo = EDUCATION_COMBOS[Math.floor(rand() * EDUCATION_COMBOS.length) % EDUCATION_COMBOS.length];
+
+  const internshipTemplates = [
+    `${company} ${jobTitle} 实习 6 个月`,
+    `${company} 暑期 ${jobTitle} 实习`,
+    `${company} ${jobTitle} 实习生（转正评估 A）`,
+  ];
+
+  const personas: RoleCard['persona'][] = [
+    {
+      traits: ['结构化', '爱搭框架', '推动流程'],
+      speaking_style: '先给结论再给依据，语速中等',
+      conflict_strategy: 'reframe',
+      cooperation_level: 0.75,
+      leadership_tendency: 0.8,
+      conflict_level: 'low',
+    },
+    {
+      traits: ['质疑型', '数据敏感', '爱追问'],
+      speaking_style: '短句、反问多，喜欢用数字压人',
+      conflict_strategy: 'challenge_others',
+      cooperation_level: 0.4,
+      leadership_tendency: 0.6,
+      conflict_level: 'high',
+    },
+    {
+      traits: ['务实', '细节控', '善收尾'],
+      speaking_style: '具体、举例多，擅长把方案落到执行',
+      conflict_strategy: 'compromise',
+      cooperation_level: 0.7,
+      leadership_tendency: 0.45,
+      conflict_level: 'medium',
+    },
+  ];
+
+  return names.map((name, i) => {
+    const background: CandidateBackground = {
+      education: combo[i],
+      school: schools[i],
+      major: majors[i],
+      internship: internshipTemplates[i],
+    };
+    return {
+      id: `candidate_${i + 1}_${seed % 100000}`,
+      name,
+      industry: inferIndustry(jobTitle),
+      persona: personas[i],
+      voice: {
+        provider: 'stepfun',
+        voice_id: voices[i],
+        rate: [1.0, 1.08, 0.96][i],
+        emotion_default: 'neutral',
+      },
+      avatar: { preset_id: avatars[i], emotion_set: ['neutral', 'positive', 'serious'] },
+      behavior: {
+        speak_probability: [0.8, 0.7, 0.6][i],
+        interrupt_probability: [0.35, 0.5, 0.25][i],
+        avg_speak_duration: [35, 28, 40][i],
+        response_to_challenge: ['reframe', 'counter_attack', 'concede_and_extend'][i],
+        summary_tendency: [0.5, 0.25, 0.35][i],
+      },
+      background,
+    };
+  });
 }

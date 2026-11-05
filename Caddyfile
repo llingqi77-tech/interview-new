@@ -1,7 +1,7 @@
 # Caddy 生产配置：自动 HTTPS + 反向代理
 #
-# 站点地址由 compose 里的 DOMAIN 决定：
-#   DOMAIN=interview.example.com  → 自动申请并续期 Let's Encrypt 证书，HTTP 强制跳 HTTPS
+# 站点地址由 compose 里的 DOMAIN 决定（生产：groupinterview.online）：
+#   DOMAIN=groupinterview.online  → 自动申请并续期 Let's Encrypt 证书，HTTP 强制跳 HTTPS
 #   DOMAIN=:80                    → 纯 HTTP（还没域名时的过渡态，摄像头功能会因非安全上下文失效）
 #   DOMAIN=:443                   → 自签证书（仅调试，浏览器会拦）
 

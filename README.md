@@ -1,15 +1,92 @@
 <div align="center">
 
-# 🎯 群面模拟器
+# 🎯 LGD Simulator · AI 面试练习
 
-**专业、高压、实战。模拟互联网大厂群面环境。**
+**纯前端单页应用。无注册登录、无付费墙，打开即可用。**
 
 [![React](https://img.shields.io/badge/React-19.2.3-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8.2-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-6.2.0-646CFF?logo=vite)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-4.1.18-38B2AC?logo=tailwind-css)](https://tailwindcss.com/)
 
+生产域名：**groupinterview.online**
+
 </div>
+
+---
+
+## 产品形态
+
+四段式流程，任一时刻处于以下四个状态之一：
+
+| 状态 | 环节 | 说明 |
+|---|---|---|
+| `IDLE` | 练习配置 | 填写公司/岗位，选择面试模式与题目类型或面试官，AI 生成题目 |
+| `PREPARING` | 设备检测 | 麦克风 / 摄像头 / 扬声器 / 网络四连检，数据同意开关，流程预览 |
+| `DISCUSSING` | 面试房间 | 倒计时驱动的分阶段模拟面试，可语音或文字参与、随时打断 |
+| `FINISHED` | 面后报告 | 自动生成多维评估报告，可「再来一场」或删除本次记录 |
+
+两种模式：
+
+- **无领导小组讨论（LGD）**：1 位主持面试官 + 3 位 AI 候选人 + 你。审题 3min → 自我介绍每人 1min（共 4min）→ 自由讨论 15min → 总结陈词 3min。
+- **结构化单面（Panel）**：2（或 3）位面试官 + 你。自我介绍 1min → 面试官问答 8-10min → 反问 2min。题目在你做完自我介绍后按目标岗位即时生成（STAR 结构化）。
+
+## 打分机制
+
+百分制：每个维度 0-100 子分 × 权重求和。分数段：≥90 优秀 / 80-89 良好 / 70-79 合格 / 60-69 待提升 / <60 重点改进。
+
+| 群面维度 | 权重 | | 单面维度 | 权重 |
+|---|---|---|---|---|
+| 内容贡献 | 20% | | 岗位匹配度 | 25% |
+| 团队协作 | 20% | | 综合分析能力 | 15% |
+| 结构贡献 | 15% | | 行为与成果（STAR） | 15% |
+| 领导与影响力 | 15% | | 沟通表达 | 10% |
+| 抗压与冲突处理 | 10% | | 学习与成长潜力 | 10% |
+| 沟通表达 | 10% | | 动机与价值观 | 10% |
+| 语音表现 | 8% | | 抗压与应变 | 10% |
+| 视觉表现 | 2% | | 反问质量 | 3% |
+| | | | 语音与视觉表现 | 2% |
+
+纯语音模式（跳过摄像头）不评估视觉维度，其权重按比例分摊至其余维度，总分仍为百分制。
+
+## 技术栈
+
+- **DeepSeek**：题目生成、角色发言、面后语义分析（全部经 `/api/llm` 服务端代理，key 仅存服务端）
+- **StepFun**：ASR 语音识别、TTS 语音合成、Realtime 全双工语音（凭证由服务端短时签发）
+- **浏览器 Web Speech API**：语音兜底
+- **摄像头分析**：MediaPipe FaceLandmarker，全部在浏览器本地完成（0 字节上传）
+- **数据存储**：默认本地模式（未配置数据库）；配置数据库后支持会话保存；原始音频/视频默认不保存
+
+## 快速开始
+
+```bash
+pnpm install
+cp .env.example .env.local   # 填入 DEEPSEEK_API_KEY / STEPFUN_API_KEY / DATABASE_URL
+pnpm dev                     # http://localhost:3000
+pnpm verify                  # 密钥扫描 + typecheck + 测试 + 构建 + bundle 检查
+```
+
+## 目录结构
+
+```
+engine/            纯逻辑：阶段引擎、引导语、打分、调度器、报告、隐私、设备检测、轨迹、发言权
+data/              题库（4 类）、6 位面试官形象、AI 候选人生成、角色卡
+components/        SetupForm / DeviceCheck / InterviewRoom / RoomStage / ReportView
+src/session/       SessionController（会话编排）+ store + 落库队列
+api/               /api/llm、/api/asr、/api/tts、/api/realtime-token、/api/session(s)、/api/analyze
+tests/prd/         PRD 一致性检查（171 条，node scripts/prd-conformance.mjs）
+```
+
+## 验收
+
+```bash
+node scripts/prd-conformance.mjs   # PRD 一致性检查：171/171
+pnpm typecheck && pnpm test        # 类型 + 322 条单元/集成测试
+```
+
+---
+
+## 历史版本说明（v0.7-tow 及更早）
 ---
 
 ## 🆕 v0.7-tow 升级说明（语音化 + 真实计时 + 安全债清偿）

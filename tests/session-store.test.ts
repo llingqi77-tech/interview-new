@@ -48,7 +48,7 @@ function makeDeps(overrides: Partial<SessionDeps> = {}): SessionDeps {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const FREE_DISCUSSION = { phaseIndex: 2, phaseStartedAt: Date.now(), openingIndex: 4, openingStartedAt: Date.now(), finished: false };
+const FREE_DISCUSSION = { format: 'lgd' as const, phaseIndex: 2, phaseStartedAt: Date.now(), openingIndex: 4, openingStartedAt: Date.now(), warned: false, wrapped: false, finished: false };
 
 test('store：set 合并补丁并通知订阅者（双订阅 = 双模式共用同一实例）', () => {
   const store = createSessionStore(makeInitialSnapshot(1000));
@@ -177,7 +177,7 @@ test('倒计时驱动：READING(覆盖 300ms) → OPENING 自动切换并产生 
   await sleep(1200);
   const snap = c.store.getSnapshot();
   assert.equal(snap.phase.phaseIndex, 1, '应进入 OPENING');
-  assert.ok(snap.events.some((e) => e.event_type === 'stage_change' && e.target === 'OPENING'));
+  assert.ok(snap.events.some((e) => e.event_type === 'stage_change' && e.target === 'INTRO'));
   // OPENING 第一位陈述者已被触发（AI 开始生成或用户被点名）
   assert.ok(snap.isGenerating || snap.awaitingUser || snap.messages.length > 0);
   c.dispose();

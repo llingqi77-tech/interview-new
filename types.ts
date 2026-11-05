@@ -77,6 +77,8 @@ export interface RoleCard {
   voice: RoleVoice;
   avatar: RoleAvatar;
   behavior: RoleBehavior;
+  /** 候选人背景（PRD 5. AI 候选人背景设计规范）；主持/面试官卡可缺省 */
+  background?: CandidateBackground;
 }
 
 /** 预设形象（附录 D.3 avatars 表） */
@@ -118,8 +120,8 @@ export interface AvatarModelEntry {
 /** 群面阵型：lgd = 1 主持 + 3 AI 候选人 + 用户；panel = 2 或 3 位面试官 + 用户（结构化单面，默认 3） */
 export type InterviewFormat = 'lgd' | 'panel';
 
-/** 群面阶段（PRD 4.1.3 真实计时四阶段） */
-export type PhaseId = 'READING' | 'OPENING' | 'FREE_DISCUSSION' | 'SUMMARY';
+/** 阶段 id（群面四阶段 + 单面三阶段） */
+export type PhaseId = 'READING' | 'INTRO' | 'FREE_DISCUSSION' | 'SUMMARY' | 'SELF_INTRO' | 'QA' | 'COUNTER_ASK';
 
 export interface PhaseDef {
   id: PhaseId;
@@ -131,10 +133,20 @@ export interface PhaseDef {
   durationMs: number;
   /** 是否允许发言 */
   allowSpeech: boolean;
+  /** 侧边栏阶段说明 */
+  description: string;
+  /** 阶段序号（1 起） */
+  order: number;
 }
 
 /** 发言权调度事件（events 表，PRD 4.1.4 / D.3） */
-export type GameEventType = 'stage_change' | 'interrupt' | 'yield' | 'speak_grant';
+export type GameEventType =
+  | 'stage_change'
+  | 'interrupt'
+  | 'yield'
+  | 'speak_grant'
+  | 'time_warning'
+  | 'wrap_up';
 
 export interface GameEvent {
   event_type: GameEventType;
@@ -245,30 +257,32 @@ export interface VisualStats extends VisualStatsInput {
   evidence: Evidence[];
 }
 
-/** 报告维度（PRD 附录 C，M3 过渡权重：内容 40 / 语音 25 / 抗压 20 / 协作 15） */
-export interface DimensionScore {
+/** 报告维度结果（PRD 7. 报告输出形式） */
+export interface DimensionResult {
   score: number;
   max: number;
   evidence: Evidence[];
-  /** 规则引擎实算指标摘要 */
+  /** 规则引擎实算指标摘要（报告里的指标标签） */
   metrics?: Record<string, number | string>;
   note?: string;
+  /** 视觉类维度：摄像头未开启时标记 not_enabled */
+  status?: 'enabled' | 'not_enabled';
 }
 
-/** 面后报告 v1.5（PRD E.5） */
-export interface ReportV15 {
+/** 面后报告（PRD 7. / 8.）：群面 8 维 / 单面 9 维，百分制加权 */
+export interface InterviewReport {
   session_id: number | null;
+  format: InterviewFormat;
   overall_score: number;
-  dimensions: {
-    content: DimensionScore;
-    voice: DimensionScore;
-    visual: DimensionScore & { status: 'not_enabled' | 'enabled' };
-    stress: DimensionScore;
-    teamwork: DimensionScore;
-  };
+  /** 分数段：优秀 / 良好 / 合格 / 待提升 / 重点改进 */
+  band: string;
+  band_advice: string;
+  /** 本场考察核心 */
+  core_focus: string;
+  dimensions: Record<string, DimensionResult>;
+  /** 本场实际使用的权重（合计 100） */
+  weights: Record<string, number>;
   suggestions: string[];
-  /** 旧 4 字段保留冗余展示（PRD D.2） */
-  legacy?: FeedbackData;
   created_at?: string;
 }
 
@@ -279,4 +293,66 @@ export interface SimulationState {
   status: 'IDLE' | 'PREPARING' | 'DISCUSSING' | 'FINISHED';
   /** 群面阵型（缺省 lgd，向后兼容旧数据） */
   format?: InterviewFormat;
+}
+
+// ============================================================
+// PRD 一致性重构：状态机 / 题型 / 维度 / 阶段
+// ============================================================
+
+/** 四段式流程（PRD 1. 整体流程总览） */
+export const STATUS_FLOW = ['IDLE', 'PREPARING', 'DISCUSSING', 'FINISHED'] as const;
+export type SimulationStatus = (typeof STATUS_FLOW)[number];
+
+/** 无领导小组讨论四种题目类型（PRD 2. 练习配置） */
+export type LgdTopicType = 'business_case' | 'open_debate' | 'resource_scramble' | 'priority_rank';
+
+export const LGD_TOPIC_TYPES: { id: LgdTopicType; label: string; hint: string }[] = [
+  { id: 'business_case', label: '商业案例题', hint: '给定经营场景，要求给出可落地的方案与取舍' },
+  { id: 'open_debate', label: '开放辩论题', hint: '存在对立立场，要求论证并尝试达成一致' },
+  { id: 'resource_scramble', label: '资源争夺题', hint: '有限资源在多个诉求方之间分配' },
+  { id: 'priority_rank', label: '优先级排序题', hint: '多个选项排序并说明排序依据' },
+];
+
+/** 结构化单面阶段（PRD 6. 第二部分：结构化单面） */
+export type PanelPhaseId = 'SELF_INTRO' | 'QA' | 'COUNTER_ASK';
+/** 群面阶段（PRD 5. 第一部分：无领导小组讨论） */
+export type LgdPhaseId = 'READING' | 'INTRO' | 'FREE_DISCUSSION' | 'SUMMARY';
+export type AnyPhaseId = LgdPhaseId | PanelPhaseId | 'FINISHED';
+
+/** AI 候选人背景（PRD 5. AI 候选人背景设计规范） */
+export interface CandidateBackground {
+  /** 本科 / 硕士 / 博士 */
+  education: '本科' | '硕士' | '博士';
+  /** 学校层次描述，用于区分候选人 */
+  school: string;
+  /** 专业方向（3 人互异） */
+  major: string;
+  /** 与目标公司/岗位匹配的实习经历 */
+  internship: string;
+}
+
+/** 面试官级别（PRD：至少 manager 级别以上） */
+export type InterviewerLevel = 'manager' | 'senior_manager' | 'director' | 'vp' | 'head';
+
+/** 岗位族：用于「岗位匹配」把面试官与岗位对齐 */
+export type JobFamily = 'tech' | 'product' | 'finance' | 'supply' | 'consulting' | 'marketing' | 'hr' | 'general';
+
+/** 面试官形象卡（PRD 2. 结构化单面：6 个面试官形象） */
+export interface InterviewerCard {
+  id: string;
+  /** 形象名：科技远见者 / 产品传奇 / … */
+  archetype: string;
+  name: string;
+  title: string;
+  company: string;
+  level: InterviewerLevel;
+  yearsExperience: number;
+  jobFamilies: JobFamily[];
+  /** 形象资源 id（data/avatars.ts） */
+  avatar: string;
+  voiceId: string;
+  /** 本场角色：主持面试官 / 主面试官 / 副面试官 */
+  role: 'host' | 'lead' | 'support';
+  /** 一句话人设，喂给 LLM */
+  bio: string;
 }

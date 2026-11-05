@@ -3,6 +3,7 @@ import { USER_INFO } from '../../data/userInfo.ts';
 import {
   tickPhase,
   advancePhaseByKeyword,
+  skipAiIntro,
   currentPhase,
   currentOpeningSpeaker,
   phaseRemainingMs,
@@ -40,6 +41,12 @@ import { SaveQueue } from './saveQueue.ts';
 import { collectVoiceSpeakers } from './voiceRoster.ts';
 import { buildAiMessage, buildUserMessage, interruptEvent, speakGrantEvent, stageChangeEvent } from './transcript.ts';
 import { buildReplyParams } from './replyRequest.ts';
+import { scriptToMessage, shortConfirm } from '../../engine/phaseScripts.ts';
+import { transitionKey } from '../../engine/phaseEngine.ts';
+import { beepCuesFor } from '../../engine/beep.ts';
+import { playBeep } from '../../services/beepPlayer.ts';
+import { detectSummaryIntent, SUMMARY_BONUS } from '../../engine/summaryIntent.ts';
+import { fallbackLine } from '../../engine/fallbackLines.ts';
 import type { SpeakerKind } from './speakerKind.ts';
 import {
   AI_PLAYING_RETRY_MS,
@@ -86,6 +93,10 @@ export interface SessionDeps {
   panelOpeningAdvanceMs?: number;
   /** 测试注入：替换 Realtime 建链 */
   createRealtimeClient?: (opts: RealtimeClientOptions) => Promise<RealtimeClient>;
+  /** 测试注入：替换提示音播放（默认 WebAudio） */
+  playBeep?: (kind: import('../../engine/beep.ts').BeepKind) => void;
+  /** 题目要点（来自题库/生成结果；缺省时从题面抽取） */
+  keyPoints?: string[];
   /**
    * 测试注入：替换嘴会话分路池。
    * 缺省时按本场音色各开一条 Realtime 嘴会话。耳会话仍走 createRealtimeClient。
@@ -136,6 +147,14 @@ export class SessionController {
   private disposed = false;
   /** 已做阶段开场白标记 */
   private stageEnterAnnounced = new Set<string>();
+  /** 上一个已播报的阶段（用于取引导语 key） */
+  private lastAnnouncedPhase: PhaseId | null = null;
+  /** 真人是否主动争取了总结（报告加分） */
+  private summaryByUser = false;
+  /** 开场白是否已播报 */
+  private openingAnnounced = false;
+  /** 单面：候选人自我介绍原文（用于 STAR 即时出题） */
+  private selfIntroText = '';
   private lastHostNudgeAt = 0;
   private userStream: MediaStream | null = null;
   private visionClient: VisionClient | null = null;
@@ -219,7 +238,7 @@ export class SessionController {
   async triggerAITurn(card: RoleCard, opts?: { speakerKind?: SpeakerKind; force?: boolean }): Promise<void> {
     if (!this.canStartAiTurn(card, opts?.force)) return;
     const speakerKind = opts?.speakerKind ?? this.defaultSpeakerKind(card);
-    const phaseAtStart = currentPhase(this.phaseRef, this.phaseConfig);
+    const phaseAtStart = currentPhase(this.phaseRef, this.format, this.phaseConfig);
     const epoch = this.beginAiTurn(card);
     let stale = false;
     try {
@@ -232,8 +251,18 @@ export class SessionController {
       this.commitAiUtterance(card, speakerKind, phaseAtStart, spoken);
       await this.playAiLine(card, spoken);
     } catch (err) {
-      console.error('AI 发言失败:', err);
+      console.error('AI 发言失败，使用兜底台词继续:', err);
+      // 降级保护：LLM 异常时用兜底台词把流程接下去，讨论不中断
       this.store.set({ degraded: true });
+      if (!stale && !this.disposed && epoch === this.turnEpoch) {
+        const now = Date.now();
+        const line = fallbackLine(speakerKind === 'host' ? 'host' : speakerKind === 'interviewer' ? 'interviewer' : 'candidate', this.format, now);
+        this.commitAiUtterance(card, speakerKind, phaseAtStart, {
+          result: { content: line, emotion: 'neutral', target: null, stepfun_tts_instruction: null },
+          content: line,
+          startedAt: now,
+        });
+      }
     } finally {
       this.endAiTurn(card.id, speakerKind, stale);
     }
@@ -339,6 +368,31 @@ export class SessionController {
 
   // ---------- 设备 ----------
 
+  /**
+   * 开场白（PRD 4.：进入房间后开场白：自我介绍、说明本场题目与阶段及总时长）
+   * 由 UI 在挂载后调用一次，避免 init() 产生副作用影响测试。
+   */
+  announceOpening(): void {
+    if (this.openingAnnounced) return;
+    this.openingAnnounced = true;
+    const first = currentPhase(this.phaseRef, this.format, this.phaseConfig);
+    this.stageEnterAnnounced.add(first.id);
+    this.lastAnnouncedPhase = first.id;
+    this.announceStage('OPEN', first.id);
+  }
+
+  /** 一键跳过所有 AI 候选人的自我介绍（PRD 5.） */
+  skipAiIntro(): void {
+    if (this.format !== 'lgd') return;
+    const res = skipAiIntro(this.phaseRef, Date.now(), this.format, this.phaseConfig, this.sessionStartAt);
+    if (!res.changed) return;
+    this.phaseRef = res.state;
+    this.store.set({ phase: res.state });
+    this.pushEvents(res.events);
+    const next = currentPhase(this.phaseRef, this.format, this.phaseConfig);
+    this.onStageEnter(next.id);
+  }
+
   toggleMic(): void {
     const next = !this.snap.micOn;
     this.store.set({ micOn: next });
@@ -385,8 +439,8 @@ export class SessionController {
     if (this.finished || this.disposed) return;
     const now = Date.now();
     if (this.advancePhaseClock(now)) return;
-    const phase = currentPhase(this.phaseRef, this.phaseConfig);
-    if (phase.id === 'OPENING') {
+    const phase = currentPhase(this.phaseRef, this.format, this.phaseConfig);
+    if (phase.id === 'INTRO' || phase.id === 'SELF_INTRO') {
       this.tickOpening(now);
       return;
     }
@@ -398,17 +452,25 @@ export class SessionController {
   }
 
   private advancePhaseClock(now: number): boolean {
-    const res = tickPhase(this.phaseRef, now, this.phaseConfig, this.sessionStartAt);
+    const res = tickPhase(this.phaseRef, now, this.format, this.phaseConfig, this.sessionStartAt);
     if (!res.changed) return false;
-    const prevPhaseId = currentPhase(this.phaseRef, this.phaseConfig).id;
+    const prevPhaseId = currentPhase(this.phaseRef, this.format, this.phaseConfig).id;
     this.phaseRef = res.state;
     this.store.set({ phase: res.state });
     this.pushEvents(res.events);
+    // 自由讨论最后 3 分钟：主持面试官播报收尾引导语（PRD 5.）
+    if (res.events.some((e) => e.event_type === 'wrap_up')) {
+      this.announceStage('FREE_DISCUSSION', 'SUMMARY', false, 'free->wrap');
+    }
+    // 阶段结束前 1 分钟：主持面试官给一句时间提醒（PRD 4.）
+    if (res.events.some((e) => e.event_type === 'time_warning')) {
+      this.announceTimeWarning();
+    }
     if (res.state.finished) {
       void this.finishSession();
       return true;
     }
-    const nextPhaseId = currentPhase(this.phaseRef, this.phaseConfig).id;
+    const nextPhaseId = currentPhase(this.phaseRef, this.format, this.phaseConfig).id;
     if (nextPhaseId !== prevPhaseId) this.onStageEnter(nextPhaseId);
     return false;
   }
@@ -441,16 +503,98 @@ export class SessionController {
     }
   }
 
+  /**
+   * 阶段切换播报（PRD 4.）：固定引导语 TTS + 字幕气泡 + 倒计时提示音。
+   * 由主持面试官（群面）/ 主面试官（单面）说出，不重复长篇说明。
+   */
+  private announceStage(from: PhaseId | 'OPEN', to: PhaseId | 'FINISHED', short = false, explicitKey?: string): void {
+    if (this.disposed) return;
+    const key = explicitKey ?? transitionKey(this.format, from, to);
+    const speaker = this.format === 'panel' ? this.deps.roles[0] : HOST_CARD;
+    const speakerName = speaker?.name ?? (this.format === 'panel' ? '主面试官' : '主持面试官');
+    const atMs = this.elapsedAt(Date.now());
+    const msg = scriptToMessage({
+      format: this.format,
+      transition: key,
+      atMs,
+      speakerName,
+      speakerId: speaker?.id ?? 'host',
+      short,
+    });
+    this.store.set({ messages: [...this.snap.messages, msg] });
+    this.pushEvents([
+      {
+        event_type: 'stage_change',
+        actor: 'system',
+        target: String(to),
+        timestamp_ms: atMs,
+        metadata: { reason: 'announce', beep: true, phaseLabel: msg.content.slice(0, 12), script: key },
+      },
+    ]);
+    // 提示音：阶段开始 + 结束前 1 分钟 + 到点
+    const def = currentPhase(this.phaseRef, this.format, this.phaseConfig);
+    const beep = this.deps.playBeep ?? playBeep;
+    for (const cue of beepCuesFor({ durationMs: def.durationMs })) {
+      if (cue.kind === 'start') beep('start');
+    }
+    if (speaker) {
+      void this.voice?.speak(msg.content, {
+        voiceId: speaker.voice.voice_id,
+        rate: speaker.voice.rate,
+        emotion: 'neutral',
+        instruction: '沉稳清晰，主持人语气',
+      });
+    }
+  }
+
+  /** 阶段结束前 1 分钟的时间提醒（一句话，不打断流程） */
+  private announceTimeWarning(): void {
+    if (this.disposed) return;
+    const def = currentPhase(this.phaseRef, this.format, this.phaseConfig);
+    const speaker = this.format === 'panel' ? this.deps.roles[0] : HOST_CARD;
+    const speakerName = speaker?.name ?? '面试官';
+    const content = `还有 1 分钟，${def.label}环节即将结束。`;
+    const atMs = this.elapsedAt(Date.now());
+    this.store.set({
+      messages: [
+        ...this.snap.messages,
+        {
+          id: `warn-${atMs}`,
+          senderId: speaker?.id ?? 'host',
+          senderName: speakerName,
+          content,
+          timestamp: Date.now(),
+          type: 'system',
+          startMs: atMs,
+          endMs: atMs + 3000,
+          source: 'llm',
+          emotion: 'neutral',
+        },
+      ],
+    });
+    if (speaker) {
+      void this.voice?.speak(content, {
+        voiceId: speaker.voice.voice_id,
+        rate: speaker.voice.rate,
+        emotion: 'neutral',
+        instruction: '沉稳提醒',
+      });
+    }
+  }
+
   private onStageEnter(phaseId: PhaseId): void {
     if (this.finished || this.stageEnterAnnounced.has(phaseId)) return;
     this.stageEnterAnnounced.add(phaseId);
+    const prev = this.lastAnnouncedPhase;
+    this.lastAnnouncedPhase = phaseId;
+    this.announceStage(prev ?? 'OPEN', phaseId);
     if (this.format === 'lgd') {
       if (phaseId === 'FREE_DISCUSSION' || phaseId === 'SUMMARY') {
         void this.triggerAITurn(HOST_CARD, { speakerKind: 'host', force: true });
       }
       return;
     }
-    if (phaseId === 'OPENING' || phaseId === 'SUMMARY') {
+    if (phaseId === 'SELF_INTRO' || phaseId === 'QA' || phaseId === 'COUNTER_ASK') {
       const first = this.deps.roles[0];
       if (first) void this.triggerAITurn(first, { speakerKind: 'interviewer', force: true });
     }
@@ -461,7 +605,7 @@ export class SessionController {
   private runScheduledTurn(): void {
     this.scheduled = null;
     if (this.finished || this.disposed) return;
-    const phase = currentPhase(this.phaseRef, this.phaseConfig);
+    const phase = currentPhase(this.phaseRef, this.format, this.phaseConfig);
     if (!phase.allowSpeech || this.generating.size > 0) return;
     if (this.aiVoicePlaying()) {
       this.scheduled = setTimeout(() => this.runScheduledTurn(), AI_PLAYING_RETRY_MS);
@@ -470,7 +614,7 @@ export class SessionController {
     const now = Date.now();
     const decision = selectNextSpeaker(this.deps.roles, this.turn, {
       now,
-      stageUrgency: stageUrgency(this.phaseRef, now, this.phaseConfig),
+      stageUrgency: stageUrgency(this.phaseRef, now, this.format, this.phaseConfig),
       silenceMs: this.silenceMs(now),
     });
     if (this.withinBargeInHold(now) && decision.speakerId !== 'user') {
@@ -530,13 +674,13 @@ export class SessionController {
     const nextIndex = Math.min(this.phaseRef.phaseIndex + 1, this.phaseConfigLength());
     this.phaseRef = { ...this.phaseRef, phaseIndex: nextIndex, phaseStartedAt: now };
     this.store.set({ phase: this.phaseRef });
-    this.pushEvents([stageChangeEvent('FREE_DISCUSSION', this.elapsedAt(now), 'panel_intro_done')]);
-    this.onStageEnter('FREE_DISCUSSION');
+    this.pushEvents([stageChangeEvent('QA', this.elapsedAt(now), 'panel_intro_done')]);
+    this.onStageEnter('QA');
   }
 
   private triggerOpeningSpeaker(now: number): void {
     const index = this.phaseRef.openingIndex;
-    const speaker = currentOpeningSpeaker(this.phaseRef, this.phaseConfig);
+    const speaker = currentOpeningSpeaker(this.phaseRef, this.phaseConfig, this.format);
     if (!speaker || this.openingTriggered.has(index)) return;
     this.openingTriggered.add(index);
     if (speaker === 'user') {
@@ -553,7 +697,7 @@ export class SessionController {
   private canStartAiTurn(card: RoleCard, force?: boolean): boolean {
     if (this.finished || this.disposed || !card?.id) return false;
     if (this.generating.has(card.id)) return false;
-    const phase = currentPhase(this.phaseRef, this.phaseConfig);
+    const phase = currentPhase(this.phaseRef, this.format, this.phaseConfig);
     return phase.allowSpeech || Boolean(force);
   }
 
@@ -566,7 +710,7 @@ export class SessionController {
   private async requestReply(card: RoleCard, speakerKind: SpeakerKind): Promise<SpokenReply> {
     const reply = this.deps.generateReply ?? generateAIReply;
     const startedAt = Date.now();
-    const phase = currentPhase(this.phaseRef, this.phaseConfig);
+    const phase = currentPhase(this.phaseRef, this.format, this.phaseConfig);
     const result = await reply(
       buildReplyParams({
         card,
@@ -581,8 +725,11 @@ export class SessionController {
         currentKeyPointIndex: this.keyPoints.index,
         voiceMode: this.isRealtimeVoiceActive() || this.snap.caps?.outputMode === 'stepfun-tts',
         speakerKind,
-        phaseRemainingMs: phaseRemainingMs(this.phaseRef, startedAt, this.phaseConfig),
+        phaseRemainingMs: phaseRemainingMs(this.phaseRef, startedAt, this.format, this.phaseConfig),
         sessionId: this.deps.sessionId,
+        company: this.deps.state.company,
+        selfIntro: this.selfIntroText,
+        panelDuty: this.panelDutyOf(card.id),
       }),
       (chunk) => this.store.set({ streamingText: this.snap.streamingText + chunk }),
     );
@@ -613,7 +760,7 @@ export class SessionController {
 
   private maybeAdvancePhaseByKeyword(phase: { id: PhaseId }, speakerKind: SpeakerKind, content: string): void {
     if (this.format === 'lgd' && speakerKind === 'candidate' && phase.id === 'FREE_DISCUSSION' && this.shouldAdvanceByKeyword(content)) {
-      const res = advancePhaseByKeyword(this.phaseRef, Date.now(), this.phaseConfig, this.sessionStartAt);
+      const res = advancePhaseByKeyword(this.phaseRef, Date.now(), this.format, this.phaseConfig, this.sessionStartAt);
       if (!res.changed) return;
       this.phaseRef = res.state;
       this.store.set({ phase: res.state });
@@ -682,9 +829,31 @@ export class SessionController {
     this.store.set(source === 'realtime' ? { awaitingUser: false, userSpeaking: false } : { awaitingUser: false });
     this.turn = registerSpeak(this.turn, 'user', sentAt);
     this.grantSpeakWindow('user', sentAt + estimateSpeechMs(text));
-    if (this.format === 'panel' && currentPhase(this.phaseRef, this.phaseConfig).id === 'OPENING') {
+    if (this.format === 'panel' && currentPhase(this.phaseRef, this.format, this.phaseConfig).id === 'SELF_INTRO') {
       this.openingUserSpeechAt = sentAt;
+      this.selfIntroText = `${this.selfIntroText}${text}`.slice(0, 1200);
     }
+    // 真人主动争取总结（PRD 5.）：改由真人总结并加分
+    if (this.format === 'lgd' && detectSummaryIntent(text)) {
+      this.summaryByUser = true;
+      this.pushEvents([
+        {
+          event_type: 'speak_grant',
+          actor: 'user',
+          target: 'all',
+          timestamp_ms: this.elapsedAt(sentAt),
+          metadata: { reason: 'user_claims_summary', bonus: SUMMARY_BONUS },
+        },
+      ]);
+    }
+  }
+
+  /** 单面：按面试官在 roles 里的位置判定主/副分工 */
+  private panelDutyOf(cardId: string): 'lead' | 'support' | null {
+    if (this.format !== 'panel') return null;
+    const idx = this.deps.roles.findIndex((r) => r.id === cardId);
+    if (idx < 0) return null;
+    return idx === 0 ? 'lead' : 'support';
   }
 
   private recordUserBargeIn(interruptedCharId: string | null): void {
@@ -759,7 +928,10 @@ export class SessionController {
   // ---------- 内部：设备 / 落库 ----------
 
   private loadKeyPoints(): void {
-    const points = this.format === 'panel' ? [] : extractKeyPoints(this.deps.state.topic);
+    // 优先用题库/生成结果给出的要点；没有时退回从题面正则抽取
+    const provided = this.deps.keyPoints ?? [];
+    const points =
+      this.format === 'panel' ? [] : provided.length > 0 ? provided : extractKeyPoints(this.deps.state.topic);
     this.keyPoints.reset(points);
     this.store.set({ currentKeyPoint: this.keyPoints.current });
   }
@@ -850,7 +1022,7 @@ export class SessionController {
   }
 
   private shouldAdvanceByKeyword(content: string): boolean {
-    const progress = phaseProgress(this.phaseRef, Date.now(), this.phaseConfig);
+    const progress = phaseProgress(this.phaseRef, Date.now(), this.format, this.phaseConfig);
     return this.keyPoints.shouldAdvancePhase(content, progress);
   }
 
@@ -993,6 +1165,6 @@ export class SessionController {
   }
 
   private phaseConfigLength(): number {
-    return getPhaseDefs(this.phaseConfig).length;
+    return getPhaseDefs(this.format, this.phaseConfig).length;
   }
 }

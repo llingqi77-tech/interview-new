@@ -1,4 +1,5 @@
-import type { Message, RoleCard, FeedbackData, ReportV15, InterviewFormat } from '../types';
+import type { Message, RoleCard, FeedbackData, InterviewReport, InterviewFormat } from '../types';
+import { fetchWithTimeout } from './http.ts';
 import { readSseResponse } from './sse.ts';
 /**
  * LLM 服务客户端（PRD 4.1.1 / D1 修复）
@@ -35,6 +36,12 @@ export interface ReplyParams {
   speakerKind?: 'candidate' | 'host' | 'interviewer';
   phaseRemainingMs?: number;
   sessionId?: number | null;
+  /** 目标公司（单面即时出题用） */
+  company?: string;
+  /** 单面：候选人自我介绍原文（服务端据此按 STAR 即时出题） */
+  selfIntro?: string;
+  /** 单面：当前提问面试官分工 */
+  panelDuty?: 'lead' | 'support' | null;
 }
 
 interface LlmResponse<T> {
@@ -44,12 +51,16 @@ interface LlmResponse<T> {
   error?: string;
 }
 
-async function postLlm<T>(body: Record<string, unknown>): Promise<LlmResponse<T>> {
-  const res = await fetch(`${API_BASE}/llm`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+async function postLlm<T>(body: Record<string, unknown>, timeoutMs = 25000): Promise<LlmResponse<T>> {
+  const res = await fetchWithTimeout(
+    `${API_BASE}/llm`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+    timeoutMs
+  );
   const text = await res.text();
   let data: T | null = null;
   try {
@@ -70,17 +81,21 @@ export async function generateTopicStream(
   company: string,
   jobTitle: string,
   onChunk: (chunk: string) => void,
-  options: { format?: InterviewFormat; topicType?: string } = {}
+  options: { format?: InterviewFormat; topicType?: string; seed?: string } = {}
 ): Promise<string> {
-  const res = await fetch(`${API_BASE}/llm`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action: 'topic',
-      payload: { company, jobTitle, ...options },
-      stream: true,
-    }),
-  });
+  const res = await fetchWithTimeout(
+    `${API_BASE}/llm`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'topic',
+        payload: { company, jobTitle, ...options },
+        stream: true,
+      }),
+    },
+    30000
+  );
   if (!res.ok || !res.body) {
     const text = await res.text().catch(() => '');
     throw new Error(`题目生成失败: ${res.status} ${text}`);
@@ -105,7 +120,7 @@ export async function generateAIReply(
   onDelta?: (chunk: string) => void
 ): Promise<ReplyResult> {
   const payload: Record<string, unknown> = {
-    card: { id: params.card.id },
+    card: params.card,
     topic: params.topic,
     jobTitle: params.jobTitle,
     history: params.history.map((m) => ({ senderId: m.senderId, senderName: m.senderName, content: m.content })),
@@ -119,17 +134,24 @@ export async function generateAIReply(
     currentKeyPointIndex: params.currentKeyPointIndex ?? 0,
     voiceMode: params.voiceMode ?? false,
     speakerKind: params.speakerKind ?? 'candidate',
+    company: params.company ?? '',
+    selfIntro: params.selfIntro ?? '',
+    panelDuty: params.panelDuty ?? null,
     phaseRemainingMs: params.phaseRemainingMs,
     session_id: params.sessionId ?? null,
   };
 
   if (onDelta) {
     // 流式：SSE 增量 + done 元数据
-    const res = await fetch(`${API_BASE}/llm`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'reply', payload, stream: true, session_id: params.sessionId ?? null }),
-    });
+    const res = await fetchWithTimeout(
+      `${API_BASE}/llm`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reply', payload, stream: true, session_id: params.sessionId ?? null }),
+      },
+      30000
+    );
     if (!res.ok || !res.body) {
       const text = await res.text().catch(() => '');
       throw new Error(`角色发言失败: ${res.status} ${text}`);
@@ -183,7 +205,8 @@ export async function generateFeedback(
 }
 
 /** 报告 v1.5（规则引擎 + LLM 语义分，经 /api/llm analyze action） */
-export async function generateReportV15(params: {
+export async function generateInterviewReport(params: {
+  format?: InterviewFormat;
   topic: string;
   jobTitle: string;
   messages: Message[];
@@ -193,10 +216,11 @@ export async function generateReportV15(params: {
   /** 视觉聚合行（本地模式兜底路径也保留视觉维度；服务端路径走 DB） */
   visualRows?: import('../types').VisualFeatureRow[];
   sessionId?: number | null;
-}): Promise<ReportV15> {
-  const { ok, data, error } = await postLlm<ReportV15>({
+}): Promise<InterviewReport> {
+  const { ok, data, error } = await postLlm<InterviewReport>({
     action: 'analyze',
     payload: {
+      format: params.format ?? 'lgd',
       topic: params.topic,
       jobTitle: params.jobTitle,
       messages: params.messages,

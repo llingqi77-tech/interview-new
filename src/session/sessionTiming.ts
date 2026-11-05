@@ -2,12 +2,11 @@ import type { PhaseId } from '../../types.ts';
 
 export const TICK_MS = 250;
 
-/** 阵型 B：审题 5s → 自我介绍 1min → 问答 8min → 收尾 2min */
+/** 阵型 B：自我介绍 1min → 面试官问答 8min → 反问 2min（PRD 6.） */
 export const PANEL_PHASE_DURATIONS_MS: Partial<Record<PhaseId, number>> = {
-  READING: 5 * 1000,
-  OPENING: 60 * 1000,
-  FREE_DISCUSSION: 8 * 60 * 1000,
-  SUMMARY: 2 * 60 * 1000,
+  SELF_INTRO: 60 * 1000,
+  QA: 8 * 60 * 1000,
+  COUNTER_ASK: 2 * 60 * 1000,
 };
 
 /** panel 自我介绍说完后，自动进入问答的等待窗 */

@@ -10,22 +10,19 @@ import { join } from 'node:path';
 
 const ROOT = process.cwd();
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
-/** M7 Phase 1：会话逻辑在 controller，经典 UI 拆为 DiscussionPanel + classic/* */
+/** 会话逻辑在 controller，房间 UI 在 InterviewRoom（RoomStage 容器派生视图） */
 const readController = () => read('src/session/sessionController.ts');
-const readClassicUi = () =>
-  read('components/DiscussionPanel.tsx') +
-  read('components/classic/ClassicPhaseHeader.tsx') +
-  read('components/classic/ClassicAside.tsx') +
-  read('components/classic/MessageBubble.tsx');
+const readRoomUi = () => read('components/InterviewRoom.tsx') + read('components/RoomStage.tsx');
 
-test('TC-04: 用户输入/说话时调用 bargeIn（SessionController + DiscussionPanel 接线）', () => {
+test('TC-04: 用户输入/说话时调用 bargeIn（SessionController + InterviewRoom 接线）', () => {
   const controller = readController();
   // 发送消息即抢话（sendTextMessage 首步 bargeIn）
   assert.ok(/sendTextMessage\(text: string\)[\s\S]{0,400}this\.bargeIn\(\)/.test(controller), 'sendTextMessage 未先调用 bargeIn');
   assert.ok(/this\.voice\?\.bargeIn\(\)/.test(controller), 'controller.bargeIn 未调用 VoiceService.bargeIn');
-  // 麦克风按下即抢话（面板接线到 controller.bargeIn）
-  const panel = read('components/DiscussionPanel.tsx');
-  assert.ok(/if \(!isListening && \(speakingCharId \|\| isGenerating\)\)[\s\S]{0,200}bargeIn/.test(panel), 'toggleListening 未实现抢话');
+  // 语音输入/打断按钮接线到 controller.bargeIn
+  const room = readRoomUi();
+  assert.ok(/onBargeIn/.test(room), '房间未接线抢话');
+  assert.ok(/controller\.bargeIn\(\)/.test(room), '抢话未调用 controller.bargeIn');
 });
 test('TC-05: AI 发言超时被打断后由调度器立即安排发言（interrupt → triggerAITurn）', () => {
   const controller = readController();
@@ -36,32 +33,25 @@ test('TC-05: AI 发言超时被打断后由调度器立即安排发言（interru
   // 用户被点名 5 秒未回应 → 其他 AI 接话
   assert.ok(/evaluateUserCalledNoResponse\(this\.deps\.roles, this\.turn, now[,\)]/.test(controller), '未实现点名未响应接话');
 });
-test('TC-10: 异常降级提示与语音模式展示（经典 UI）', () => {
-  const classic = readClassicUi();
-  assert.ok(/degraded/.test(classic) && /部分能力降级中/.test(classic), '缺少降级提示');
-  assert.ok(/StepFun ASR|浏览器语音（兜底）|纯文字（降级）/.test(classic), '缺少输入模式展示');
-  assert.ok(/StepFun TTS|纯文字（降级）/.test(classic), '缺少输出模式展示');
+test('TC-10: 异常降级提示与输入模式展示（InterviewRoom）', () => {
+  const room = readRoomUi();
+  assert.ok(/degraded/.test(room) && /部分能力降级中/.test(room), '缺少降级提示');
+  assert.ok(/INPUT_MODE_LABELS/.test(room), '缺少输入模式展示');
 });
-test('TC-07: 报告证据点击定位到原话（EvidenceReport 接线）', () => {
-  const report = read('components/EvidenceReport.tsx');
-  assert.ok(/setHighlightMsgIndex/.test(report), '证据点击未定位消息');
+test('TC-07: 报告证据点击定位到原话（ReportView 接线）', () => {
+  const report = read('components/ReportView.tsx');
+  assert.ok(/onLocate/.test(report), '证据点击未定位消息');
   assert.ok(/message_index/.test(report), '证据未关联消息序号');
-  assert.ok(/定位到/.test(report), '缺少定位展示');
+  assert.ok(/data-message-index/.test(report), '缺少定位锚点');
 });
 
-test('TC-08/US-09: 响应式布局（桌面右侧栏 + 移动端折叠）', () => {
-  const classic = readClassicUi();
-  // 桌面右侧栏（ClassicAside）
-  assert.ok(/hidden md:flex md:w-80/.test(classic), '缺少桌面右侧栏');
-  // 移动端折叠题目卡
-  assert.ok(/md:hidden mx-3 mt-2/.test(classic), '缺少移动端折叠题目卡');
-  // 移动端横向角色卡
-  assert.ok(/md:hidden px-3 pt-3/.test(classic), '移动端形象台未按断点控制');
-  // 倒计时始终可见（顶部，ClassicPhaseHeader）
-  assert.ok(/formatCountdown\(displayRemaining\)/.test(classic), '倒计时未常驻');
-  // 房间上下文条（VoiceRoom）
-  const room = read('components/VoiceRoom.tsx');
-  assert.ok(/hidden md:flex/.test(room), 'VoiceRoom 缺少桌面上下文条');
+test('TC-08/US-09: 响应式布局（桌面右侧栏 + 移动端隐藏）', () => {
+  const room = read('components/InterviewRoom.tsx');
+  // 桌面右侧栏
+  assert.ok(/hidden md:flex md:w-72/.test(room), '缺少桌面右侧栏');
+  // 倒计时始终可见（顶部状态栏）
+  assert.ok(/data-testid="countdown-ring"/.test(room), '倒计时未常驻');
+  assert.ok(/formatCountdown/.test(room), '倒计时未格式化');
 });
 test('TC-09/US-10: 前后摄像头切换（DeviceCheck 接线）', () => {
   const dc = read('components/DeviceCheck.tsx');
@@ -79,12 +69,13 @@ test('TC-10: 网络检测与跳过摄像头（DeviceCheck）', () => {
   assert.ok(/省电|前台|横屏/.test(dc), '缺少移动端专项提示');
 });
 
-test('US-13: SetupForm 12 角色卡选择 + 约束校验', () => {
+test('US-13: SetupForm 四种题型 + 系统自动生成 3 位候选人 + 必填校验', () => {
   const form = read('components/SetupForm.tsx');
-  assert.ok(/ROLE_CARDS\.map/.test(form), '未渲染 12 角色卡');
-  assert.ok(/validateSelection/.test(form), '未校验角色组合约束');
-  assert.ok(/autoSelectRoles/.test(form), '缺少随机分配');
-  assert.ok(/TOPIC_TYPES/.test(form), '缺少题型选择');
+  assert.ok(/LGD_TOPIC_TYPES\.map/.test(form), '未渲染四种题型');
+  assert.ok(/generateCandidates/.test(form), '未按岗位自动生成候选人');
+  assert.ok(/validateSetup/.test(form), '未做必填校验');
+  assert.ok(/AI 生成题目/.test(form), '缺少 AI 生成题目入口');
+  assert.ok(/开始设备检测/.test(form), '缺少进入设备检测入口');
 });
 
 test('5.2: 目标流程状态机（IDLE → PREPARING → DISCUSSING → FINISHED）', () => {
@@ -95,15 +86,15 @@ test('5.2: 目标流程状态机（IDLE → PREPARING → DISCUSSING → FINISHE
   assert.ok(/status: 'FINISHED'/.test(app));
   assert.ok(/SetupForm onStart=\{startPreparation\}/.test(app), 'SetupForm 未接入');
   assert.ok(/DeviceCheck onReady=\{enterRoom\}/.test(app), 'DeviceCheck 未接入');
-  assert.ok(/VoiceRoom[\s\S]*onFinish=\{finishSimulation\}/.test(app), 'VoiceRoom 未接入');
-  assert.ok(/EvidenceReport[\s\S]*onDeleteRecords=\{handleDeleteRecords\}/.test(app), 'EvidenceReport 未接入删除');
+  assert.ok(/RoomStage[\s\S]*onFinish=\{finishSimulation\}/.test(app), 'RoomStage 未接入');
+  assert.ok(/ReportView[\s\S]*onDelete=/.test(app), 'ReportView 未接入删除');
 });
 
 test('5.2: 降级路径（无麦克风纯文字 / 无摄像头纯语音 / 弱网提示）', () => {
   const app = read('App.tsx');
   assert.ok(/dbAvailable/.test(app) && /本地模式/.test(app), '缺少本地模式降级');
-  const panel = read('components/DiscussionPanel.tsx');
-  assert.ok(/voiceEnabled|voiceCaps/.test(panel), '房间未消费语音能力');
+  const room = readRoomUi();
+  assert.ok(/inputMode/.test(room), '房间未消费输入模式（降级结果）');
 });
 
 test('C6: 不做原生 App——无 Swift/Kotlin/RN 工程文件', () => {
@@ -155,8 +146,8 @@ test('M7-P2: realtime-token 端点与 503 降级契约（fallback: push-to-talk�
 test('M7-P2: StepFun 专有事件名只允许出现在适配层（供应商边界）', () => {
   const proprietary = ['speech_started', 'speech_stopped', 'input_audio_buffer', 'session.update', 'response.cancel'];
   const frontendFiles = [
-    'components/DiscussionPanel.tsx',
-    'components/VoiceRoom.tsx',
+    'components/InterviewRoom.tsx',
+    'components/RoomStage.tsx',
     'src/session/sessionController.ts',
     'src/session/sessionStore.ts',
     'src/session/useSession.ts',
