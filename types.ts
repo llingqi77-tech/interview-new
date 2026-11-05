@@ -257,30 +257,32 @@ export interface VisualStats extends VisualStatsInput {
   evidence: Evidence[];
 }
 
-/** 报告维度（PRD 附录 C，M3 过渡权重：内容 40 / 语音 25 / 抗压 20 / 协作 15） */
-export interface DimensionScore {
+/** 报告维度结果（PRD 7. 报告输出形式） */
+export interface DimensionResult {
   score: number;
   max: number;
   evidence: Evidence[];
-  /** 规则引擎实算指标摘要 */
+  /** 规则引擎实算指标摘要（报告里的指标标签） */
   metrics?: Record<string, number | string>;
   note?: string;
+  /** 视觉类维度：摄像头未开启时标记 not_enabled */
+  status?: 'enabled' | 'not_enabled';
 }
 
-/** 面后报告 v1.5（PRD E.5） */
-export interface ReportV15 {
+/** 面后报告（PRD 7. / 8.）：群面 8 维 / 单面 9 维，百分制加权 */
+export interface InterviewReport {
   session_id: number | null;
+  format: InterviewFormat;
   overall_score: number;
-  dimensions: {
-    content: DimensionScore;
-    voice: DimensionScore;
-    visual: DimensionScore & { status: 'not_enabled' | 'enabled' };
-    stress: DimensionScore;
-    teamwork: DimensionScore;
-  };
+  /** 分数段：优秀 / 良好 / 合格 / 待提升 / 重点改进 */
+  band: string;
+  band_advice: string;
+  /** 本场考察核心 */
+  core_focus: string;
+  dimensions: Record<string, DimensionResult>;
+  /** 本场实际使用的权重（合计 100） */
+  weights: Record<string, number>;
   suggestions: string[];
-  /** 旧 4 字段保留冗余展示（PRD D.2） */
-  legacy?: FeedbackData;
   created_at?: string;
 }
 

@@ -42,11 +42,11 @@ test('TC-10: 异常降级提示与语音模式展示（经典 UI）', () => {
   assert.ok(/StepFun ASR|浏览器语音（兜底）|纯文字（降级）/.test(classic), '缺少输入模式展示');
   assert.ok(/StepFun TTS|纯文字（降级）/.test(classic), '缺少输出模式展示');
 });
-test('TC-07: 报告证据点击定位到原话（EvidenceReport 接线）', () => {
-  const report = read('components/EvidenceReport.tsx');
-  assert.ok(/setHighlightMsgIndex/.test(report), '证据点击未定位消息');
+test('TC-07: 报告证据点击定位到原话（ReportView 接线）', () => {
+  const report = read('components/ReportView.tsx');
+  assert.ok(/onLocate/.test(report), '证据点击未定位消息');
   assert.ok(/message_index/.test(report), '证据未关联消息序号');
-  assert.ok(/定位到/.test(report), '缺少定位展示');
+  assert.ok(/data-message-index/.test(report), '缺少定位锚点');
 });
 
 test('TC-08/US-09: 响应式布局（桌面右侧栏 + 移动端折叠）', () => {
@@ -96,7 +96,7 @@ test('5.2: 目标流程状态机（IDLE → PREPARING → DISCUSSING → FINISHE
   assert.ok(/SetupForm onStart=\{startPreparation\}/.test(app), 'SetupForm 未接入');
   assert.ok(/DeviceCheck onReady=\{enterRoom\}/.test(app), 'DeviceCheck 未接入');
   assert.ok(/VoiceRoom[\s\S]*onFinish=\{finishSimulation\}/.test(app), 'VoiceRoom 未接入');
-  assert.ok(/EvidenceReport[\s\S]*onDeleteRecords=\{handleDeleteRecords\}/.test(app), 'EvidenceReport 未接入删除');
+  assert.ok(/ReportView[\s\S]*onDelete=/.test(app), 'ReportView 未接入删除');
 });
 
 test('5.2: 降级路径（无麦克风纯文字 / 无摄像头纯语音 / 弱网提示）', () => {

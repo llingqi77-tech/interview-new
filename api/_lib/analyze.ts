@@ -1,6 +1,6 @@
 import type { Pool } from 'pg';
-import type { GameEvent, Message, ReportV15, VisualFeatureRow } from '../../types';
-import { buildRuleReport, type LlmSemanticScores, type ReportInput } from '../../engine/reportEngine.ts';
+import type { GameEvent, InterviewFormat, Message, VisualFeatureRow } from '../../types';
+import { buildReport, collectEvidence, type InterviewReport, type SemanticScores } from '../../engine/reportEngine.ts';
 import { summarizeVisual } from '../../engine/visionMetrics.ts';
 import { callDeepSeek } from './llm.ts';
 import { buildAnalysisPrompt } from './prompts.ts';
@@ -15,6 +15,7 @@ import { safeJsonParse } from './jsonStream.ts';
  */
 
 export interface AnalyzeInput {
+  format?: InterviewFormat;
   topic: string;
   transcripts: Message[];
   events: GameEvent[];
@@ -25,48 +26,40 @@ export interface AnalyzeInput {
 }
 
 export interface AnalyzeResult {
-  report: ReportV15;
+  report: InterviewReport;
   persisted: boolean;
 }
 
-/** 规则引擎 + LLM 语义分 → 报告 v1.5（不落库） */
-export async function runAnalysis(input: AnalyzeInput): Promise<ReportV15> {
-  const { topic, transcripts, events, sessionStartAt, durationMs, visualRows } = input;
+/** 规则引擎 + LLM 语义分 → 面后报告（不落库） */
+export async function runAnalysis(input: AnalyzeInput): Promise<InterviewReport> {
+  const { format = 'lgd', topic, transcripts, events, sessionStartAt, durationMs, visualRows } = input;
 
-  const reportInput: ReportInput = { transcripts, events, sessionStartAt, durationMs };
   const userTranscripts = transcripts
     .filter((m) => m.senderId === 'user' && m.type === 'message')
     .map((m) => ({ content: m.content, timestampMs: Math.max(0, m.timestamp - sessionStartAt) }));
 
-  let llm: LlmSemanticScores | undefined;
+  let semantic: SemanticScores | undefined;
   if (userTranscripts.length > 0) {
     try {
       const full = await callDeepSeek(buildAnalysisPrompt(topic, userTranscripts), 0.3);
-      const parsed = safeJsonParse<LlmSemanticScores & { evidence?: { content: string; timestamp_ms: number }[] }>(full);
-      if (parsed) {
-        llm = {
-          structureScore: parsed.structureScore,
-          responseQuality: parsed.responseQuality,
-          stressResponseQuality: parsed.stressResponseQuality,
-          conflictHandling: parsed.conflictHandling,
-          supportOthers: parsed.supportOthers,
-          coordinateOthers: parsed.coordinateOthers,
-          extraEvidence: (parsed.evidence ?? []).map((e, i) => ({
-            id: `ev_llm_${i + 1}`,
-            modality: 'text' as const,
-            timestamp_ms: e.timestamp_ms,
-            content: e.content,
-            dimension_hint: 'content' as const,
-          })),
-        };
-      }
+      const parsed = safeJsonParse<{ scores?: SemanticScores }>(full);
+      if (parsed?.scores) semantic = parsed.scores;
     } catch (err) {
       console.error('analyzeSession LLM 失败，退回规则引擎:', err);
     }
   }
 
   const visualStats = visualRows && visualRows.length > 0 ? summarizeVisual(visualRows) : undefined;
-  return buildRuleReport(reportInput, llm, visualStats);
+  return buildReport({
+    format,
+    transcripts,
+    events,
+    sessionStartAt,
+    durationMs,
+    semantic,
+    visualEnabled: Boolean(visualStats),
+    visualStats,
+  });
 }
 
 /** DB 行 → Message（字段与 transcripts/conversation_records 双 schema 对齐） */
@@ -141,7 +134,8 @@ export async function analyzeSession(
     metadata: r.metadata ?? {},
   }));
 
-  const report = await runAnalysis({ topic, transcripts, events, sessionStartAt, durationMs, visualRows });
+  const format: InterviewFormat = (session?.format as InterviewFormat) ?? 'lgd';
+  const report = await runAnalysis({ format, topic, transcripts, events, sessionStartAt, durationMs, visualRows });
   report.session_id = sessionId;
 
   let persisted = false;
@@ -156,12 +150,7 @@ export async function analyzeSession(
           sessionId,
           report.overall_score,
           JSON.stringify(report.dimensions),
-          JSON.stringify([
-            ...report.dimensions.content.evidence,
-            ...report.dimensions.stress.evidence,
-            ...report.dimensions.teamwork.evidence,
-            ...report.dimensions.visual.evidence,
-          ]),
+          JSON.stringify(collectEvidence(report)),
           JSON.stringify(report.suggestions),
         ]
       );

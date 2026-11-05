@@ -2,14 +2,14 @@ import React, { useEffect, useState } from 'react';
 import SetupForm from './components/SetupForm';
 import DeviceCheck, { type DeviceCheckResult } from './components/DeviceCheck';
 import VoiceRoom from './components/VoiceRoom';
-import EvidenceReport from './components/EvidenceReport';
+import ReportView from './components/ReportView';
 import PrivacyPolicy from './components/PrivacyPolicy';
-import PayModal from './components/PayModal';
 import SettingsModal from './components/SettingsModal';
 import WalletButton from './components/WalletButton';
 import { useWalletIdentity } from './src/wallet/context';
-import { SimulationState, InterviewFormat, Message, GameEvent, RoleCard, ReportV15, FeedbackData } from './types';
-import { generateReportV15, generateFeedback } from './services/geminiService';
+import { SimulationState, InterviewFormat, Message, GameEvent, RoleCard } from './types';
+import { generateInterviewReport } from './services/geminiService';
+import type { InterviewReport } from './engine/reportEngine';
 import {
   createSession,
   updateSessionStatus,
@@ -39,14 +39,13 @@ const App: React.FC = () => {
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [dbAvailable, setDbAvailable] = useState(true);
 
-  const [report, setReport] = useState<ReportV15 | null>(null);
+  const [report, setReport] = useState<InterviewReport | null>(null);
   const [finishedMessages, setFinishedMessages] = useState<Message[]>([]);
   const [finishedEvents, setFinishedEvents] = useState<GameEvent[]>([]);
   const [sessionStartAt, setSessionStartAt] = useState(0);
   const [isLoadingFeedback, setIsLoadingFeedback] = useState(false);
   const [feedbackError, setFeedbackError] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
-  const [showPay, setShowPay] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   // 导航吸顶：滚动后背景透明度 white/6 → white/10
   const [navScrolled, setNavScrolled] = useState(false);
@@ -125,14 +124,15 @@ const App: React.FC = () => {
     const durationMs = Date.now() - startedAt;
 
     try {
-      let reportV15: ReportV15 | null = null;
+      let reportV15: InterviewReport | null = null;
       if (sessionId && consent) {
         // 服务端分析：读 DB transcripts/events/visual_features → 规则引擎 + LLM → 已落库
         reportV15 = await triggerAnalyze(sessionId);
       }
       if (!reportV15) {
         // 客户端兜底（本地模式 / 服务端异常）：用会话内存数据生成，需手动落库
-        reportV15 = await generateReportV15({
+        reportV15 = await generateInterviewReport({
+          format: state.format,
           topic: state.topic,
           jobTitle: state.jobTitle,
           messages: history,
@@ -158,9 +158,6 @@ const App: React.FC = () => {
     }
     setIsLoadingFeedback(false);
   };
-
-  /** 旧 4 字段报告（冗余展示）：EvidenceReport 内按需懒加载，不再随收尾无条件消耗一次 LLM 调用 */
-  const loadLegacyFeedback = () => generateFeedback(state.topic, state.jobTitle, finishedMessages);
 
   const handleDeleteRecords = async (id: number): Promise<boolean> => {
     return deleteSession(id);
@@ -214,9 +211,6 @@ const App: React.FC = () => {
               </span>
             )}
             <WalletButton />
-            <button onClick={() => setShowPay(true)} className="glass-btn-primary text-sm px-3 py-1.5">
-              购买次数
-            </button>
             <button onClick={() => setShowSettings(true)} className="glass-btn-ghost text-sm px-3 py-1.5">
               配置
             </button>
@@ -277,15 +271,15 @@ const App: React.FC = () => {
                 </div>
               </div>
             ) : report ? (
-              <EvidenceReport
+              <ReportView
                 report={report}
-                loadLegacy={feedbackError ? undefined : loadLegacyFeedback}
-                messages={finishedMessages}
-                events={finishedEvents}
-                sessionStartAt={sessionStartAt}
-                sessionId={sessionId}
+                error={feedbackError ? '报告生成失败，请重试' : null}
+                onRetry={() => void finishSimulation(finishedMessages, finishedEvents, sessionStartAt)}
                 onRestart={restart}
-                onDeleteRecords={handleDeleteRecords}
+                onDelete={() => {
+                  if (sessionId) void handleDeleteRecords(sessionId);
+                  restart();
+                }}
               />
             ) : (
               <div className="text-center p-8 glass-panel">
@@ -304,14 +298,6 @@ const App: React.FC = () => {
 
       {showSettings && <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />}
 
-      {showPay && (
-        <PayModal
-          open={showPay}
-          onClose={() => setShowPay(false)}
-          walletAddress={wallet.address}
-          sessionId={sessionId}
-        />
-      )}
     </div>
   );
 };

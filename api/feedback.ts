@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getPool, isDatabaseConfigured } from './_lib/db.ts';
 import { insertWithFallback, selectAdaptive } from './_lib/schema.ts';
-import type { ReportV15 } from '../types';
+import type { InterviewReport } from '../types';
 
 /**
  * 报告落库（PRD D.2：feedback_reports → reports）

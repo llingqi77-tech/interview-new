@@ -10,7 +10,7 @@ import {
   useWriteContract,
 } from 'wagmi';
 import { monadTestnet } from 'wagmi/chains';
-import type { ReportV15 } from '../types';
+import type { InterviewReport } from '../types';
 import { useWalletIdentity } from '../src/wallet/context';
 import {
   CERT_ADDRESS,
@@ -46,7 +46,7 @@ interface IndexedCertificate {
 
 const shortHash = (h: string): string => `${h.slice(0, 10)}…${h.slice(-4)}`;
 
-const CertificateSection: React.FC<{ report: ReportV15 }> = ({ report }) => {
+const CertificateSection: React.FC<{ report: InterviewReport }> = ({ report }) => {
   const identity = useWalletIdentity();
   const address = (identity.address ?? null) as `0x${string}` | null;
   const chainId = useChainId();

@@ -1,4 +1,4 @@
-import type { Message, RoleCard, FeedbackData, ReportV15, InterviewFormat } from '../types';
+import type { Message, RoleCard, FeedbackData, InterviewReport, InterviewFormat } from '../types';
 import { readSseResponse } from './sse.ts';
 /**
  * LLM 服务客户端（PRD 4.1.1 / D1 修复）
@@ -183,7 +183,8 @@ export async function generateFeedback(
 }
 
 /** 报告 v1.5（规则引擎 + LLM 语义分，经 /api/llm analyze action） */
-export async function generateReportV15(params: {
+export async function generateInterviewReport(params: {
+  format?: InterviewFormat;
   topic: string;
   jobTitle: string;
   messages: Message[];
@@ -193,10 +194,11 @@ export async function generateReportV15(params: {
   /** 视觉聚合行（本地模式兜底路径也保留视觉维度；服务端路径走 DB） */
   visualRows?: import('../types').VisualFeatureRow[];
   sessionId?: number | null;
-}): Promise<ReportV15> {
-  const { ok, data, error } = await postLlm<ReportV15>({
+}): Promise<InterviewReport> {
+  const { ok, data, error } = await postLlm<InterviewReport>({
     action: 'analyze',
     payload: {
+      format: params.format ?? 'lgd',
       topic: params.topic,
       jobTitle: params.jobTitle,
       messages: params.messages,

@@ -126,7 +126,7 @@ test('4.1.9: 隐私政策覆盖数据用途/期限/第三方 API（DeepSeek/Step
 });
 
 test('C8: 报告规则引擎性能——200 条发言 < 1s（≤30s 预算的规则部分）', async () => {
-  const { buildRuleReport } = await import('../engine/reportEngine.ts');
+  const { buildReport } = await import('../engine/reportEngine.ts');
   const transcripts = Array.from({ length: 200 }, (_, i) => ({
     id: String(i),
     senderId: i % 3 === 0 ? 'user' : `ai${i % 3}`,
@@ -145,7 +145,7 @@ test('C8: 报告规则引擎性能——200 条发言 < 1s（≤30s 预算的规
     metadata: { rule: 'user_over_30s' },
   }));
   const t0 = performance.now();
-  const report = buildRuleReport({ transcripts, events, sessionStartAt: 1_000_000, durationMs: 20 * 60 * 1000 });
+  const report = buildReport({ format: 'lgd', transcripts, events, sessionStartAt: 1_000_000, durationMs: 20 * 60 * 1000 });
   const ms = performance.now() - t0;
   assert.ok(ms < 1000, `规则引擎耗时 ${ms.toFixed(0)}ms 超过 1s`);
   assert.ok(report.overall_score > 0);

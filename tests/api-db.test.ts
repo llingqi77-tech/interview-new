@@ -433,7 +433,7 @@ test('7.6: analyze 读 visual_features → 视觉维度 enabled', async () => {
   const report = JSON.parse(res.body);
   assert.ok(recorded.some((r) => /FROM visual_features/.test(r.sql)), '未读取 visual_features');
   assert.equal(report.dimensions.visual.status, 'enabled');
-  assert.equal(report.dimensions.visual.max, 20);
+  assert.equal(report.dimensions.visual.max, 100);
   assert.ok(report.dimensions.visual.score > 0);
 });
 

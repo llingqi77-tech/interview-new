@@ -123,8 +123,8 @@ test('gas 兜底值覆盖 forge 实测（113,337）并留 Monad 冷存储溢价'
   assert.equal(MONAD_TESTNET_CHAIN_ID, 10143);
 });
 
-test('接线：EvidenceReport 懒加载铸证卡片并带守卫条件', () => {
-  const report = read('components/EvidenceReport.tsx');
+test('接线：ReportView 懒加载铸证卡片并带守卫条件', () => {
+  const report = read('components/ReportView.tsx');
   assert.ok(/lazy\(\(\) => import\('\.\/CertificateSection'\)\)/.test(report), '缺少懒加载');
   assert.ok(/isCertConfigured\(\)/.test(report), '缺少配置守卫');
   assert.ok(/wallet\.configured && !wallet\.isLoading/.test(report), '缺少钱包就绪守卫（防 wagmi context 未挂载）');

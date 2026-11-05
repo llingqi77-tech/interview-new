@@ -279,6 +279,7 @@ export async function handleFeedback(response: VercelResponse, payload: Payload)
 
 export async function handleAnalyze(response: VercelResponse, payload: Payload): Promise<void> {
   const report = await runAnalysis({
+    format: textField(payload, 'format') === 'panel' ? 'panel' : 'lgd',
     topic: textField(payload, 'topic'),
     transcripts: Array.isArray(payload.messages) ? (payload.messages as Message[]) : [],
     events: Array.isArray(payload.events) ? (payload.events as GameEvent[]) : [],

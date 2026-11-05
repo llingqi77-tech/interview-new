@@ -201,7 +201,7 @@ export async function saveVisualFeatures(
 // 保存报告 v1.5（reports JSONB 列）
 export async function saveReport(params: {
   sessionId: number;
-  report: import('../types').ReportV15;
+  report: import('../types').InterviewReport;
   legacy?: import('../types').FeedbackData;
 }): Promise<boolean> {
   try {
@@ -212,12 +212,7 @@ export async function saveReport(params: {
         session_id: params.sessionId,
         overall_score: params.report.overall_score,
         dimension_scores: params.report.dimensions,
-        evidence_pool: [
-          ...params.report.dimensions.content.evidence,
-          ...params.report.dimensions.stress.evidence,
-          ...params.report.dimensions.teamwork.evidence,
-          ...params.report.dimensions.visual.evidence,
-        ],
+        evidence_pool: Object.values(params.report.dimensions).flatMap((d) => d.evidence),
         suggestions: params.report.suggestions,
         timing: params.legacy?.timing ?? null,
         voice_share: params.legacy?.voiceShare ?? null,
@@ -242,11 +237,11 @@ export async function getFeedback(sessionId: number) {
 }
 
 // 触发服务端面后分析（/api/sessions/{id}/analyze）
-export async function triggerAnalyze(sessionId: number): Promise<import('../types').ReportV15 | null> {
+export async function triggerAnalyze(sessionId: number): Promise<import('../types').InterviewReport | null> {
   try {
     const res = await fetch(`${API_BASE}/sessions/${sessionId}/analyze`, { method: 'POST' });
     if (!res.ok) return null;
-    return await parseJson<import('../types').ReportV15>(res);
+    return await parseJson<import('../types').InterviewReport>(res);
   } catch {
     return null;
   }
