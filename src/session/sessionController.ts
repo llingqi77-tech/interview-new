@@ -219,7 +219,7 @@ export class SessionController {
   async triggerAITurn(card: RoleCard, opts?: { speakerKind?: SpeakerKind; force?: boolean }): Promise<void> {
     if (!this.canStartAiTurn(card, opts?.force)) return;
     const speakerKind = opts?.speakerKind ?? this.defaultSpeakerKind(card);
-    const phaseAtStart = currentPhase(this.phaseRef, this.phaseConfig);
+    const phaseAtStart = currentPhase(this.phaseRef, this.format, this.phaseConfig);
     const epoch = this.beginAiTurn(card);
     let stale = false;
     try {
@@ -385,8 +385,8 @@ export class SessionController {
     if (this.finished || this.disposed) return;
     const now = Date.now();
     if (this.advancePhaseClock(now)) return;
-    const phase = currentPhase(this.phaseRef, this.phaseConfig);
-    if (phase.id === 'OPENING') {
+    const phase = currentPhase(this.phaseRef, this.format, this.phaseConfig);
+    if (phase.id === 'INTRO' || phase.id === 'SELF_INTRO') {
       this.tickOpening(now);
       return;
     }
@@ -398,9 +398,9 @@ export class SessionController {
   }
 
   private advancePhaseClock(now: number): boolean {
-    const res = tickPhase(this.phaseRef, now, this.phaseConfig, this.sessionStartAt);
+    const res = tickPhase(this.phaseRef, now, this.format, this.phaseConfig, this.sessionStartAt);
     if (!res.changed) return false;
-    const prevPhaseId = currentPhase(this.phaseRef, this.phaseConfig).id;
+    const prevPhaseId = currentPhase(this.phaseRef, this.format, this.phaseConfig).id;
     this.phaseRef = res.state;
     this.store.set({ phase: res.state });
     this.pushEvents(res.events);
@@ -408,7 +408,7 @@ export class SessionController {
       void this.finishSession();
       return true;
     }
-    const nextPhaseId = currentPhase(this.phaseRef, this.phaseConfig).id;
+    const nextPhaseId = currentPhase(this.phaseRef, this.format, this.phaseConfig).id;
     if (nextPhaseId !== prevPhaseId) this.onStageEnter(nextPhaseId);
     return false;
   }
@@ -450,7 +450,7 @@ export class SessionController {
       }
       return;
     }
-    if (phaseId === 'OPENING' || phaseId === 'SUMMARY') {
+    if (phaseId === 'SELF_INTRO' || phaseId === 'QA' || phaseId === 'COUNTER_ASK') {
       const first = this.deps.roles[0];
       if (first) void this.triggerAITurn(first, { speakerKind: 'interviewer', force: true });
     }
@@ -461,7 +461,7 @@ export class SessionController {
   private runScheduledTurn(): void {
     this.scheduled = null;
     if (this.finished || this.disposed) return;
-    const phase = currentPhase(this.phaseRef, this.phaseConfig);
+    const phase = currentPhase(this.phaseRef, this.format, this.phaseConfig);
     if (!phase.allowSpeech || this.generating.size > 0) return;
     if (this.aiVoicePlaying()) {
       this.scheduled = setTimeout(() => this.runScheduledTurn(), AI_PLAYING_RETRY_MS);
@@ -470,7 +470,7 @@ export class SessionController {
     const now = Date.now();
     const decision = selectNextSpeaker(this.deps.roles, this.turn, {
       now,
-      stageUrgency: stageUrgency(this.phaseRef, now, this.phaseConfig),
+      stageUrgency: stageUrgency(this.phaseRef, now, this.format, this.phaseConfig),
       silenceMs: this.silenceMs(now),
     });
     if (this.withinBargeInHold(now) && decision.speakerId !== 'user') {
@@ -530,13 +530,13 @@ export class SessionController {
     const nextIndex = Math.min(this.phaseRef.phaseIndex + 1, this.phaseConfigLength());
     this.phaseRef = { ...this.phaseRef, phaseIndex: nextIndex, phaseStartedAt: now };
     this.store.set({ phase: this.phaseRef });
-    this.pushEvents([stageChangeEvent('FREE_DISCUSSION', this.elapsedAt(now), 'panel_intro_done')]);
-    this.onStageEnter('FREE_DISCUSSION');
+    this.pushEvents([stageChangeEvent('QA', this.elapsedAt(now), 'panel_intro_done')]);
+    this.onStageEnter('QA');
   }
 
   private triggerOpeningSpeaker(now: number): void {
     const index = this.phaseRef.openingIndex;
-    const speaker = currentOpeningSpeaker(this.phaseRef, this.phaseConfig);
+    const speaker = currentOpeningSpeaker(this.phaseRef, this.phaseConfig, this.format);
     if (!speaker || this.openingTriggered.has(index)) return;
     this.openingTriggered.add(index);
     if (speaker === 'user') {
@@ -553,7 +553,7 @@ export class SessionController {
   private canStartAiTurn(card: RoleCard, force?: boolean): boolean {
     if (this.finished || this.disposed || !card?.id) return false;
     if (this.generating.has(card.id)) return false;
-    const phase = currentPhase(this.phaseRef, this.phaseConfig);
+    const phase = currentPhase(this.phaseRef, this.format, this.phaseConfig);
     return phase.allowSpeech || Boolean(force);
   }
 
@@ -566,7 +566,7 @@ export class SessionController {
   private async requestReply(card: RoleCard, speakerKind: SpeakerKind): Promise<SpokenReply> {
     const reply = this.deps.generateReply ?? generateAIReply;
     const startedAt = Date.now();
-    const phase = currentPhase(this.phaseRef, this.phaseConfig);
+    const phase = currentPhase(this.phaseRef, this.format, this.phaseConfig);
     const result = await reply(
       buildReplyParams({
         card,
@@ -581,7 +581,7 @@ export class SessionController {
         currentKeyPointIndex: this.keyPoints.index,
         voiceMode: this.isRealtimeVoiceActive() || this.snap.caps?.outputMode === 'stepfun-tts',
         speakerKind,
-        phaseRemainingMs: phaseRemainingMs(this.phaseRef, startedAt, this.phaseConfig),
+        phaseRemainingMs: phaseRemainingMs(this.phaseRef, startedAt, this.format, this.phaseConfig),
         sessionId: this.deps.sessionId,
       }),
       (chunk) => this.store.set({ streamingText: this.snap.streamingText + chunk }),
@@ -613,7 +613,7 @@ export class SessionController {
 
   private maybeAdvancePhaseByKeyword(phase: { id: PhaseId }, speakerKind: SpeakerKind, content: string): void {
     if (this.format === 'lgd' && speakerKind === 'candidate' && phase.id === 'FREE_DISCUSSION' && this.shouldAdvanceByKeyword(content)) {
-      const res = advancePhaseByKeyword(this.phaseRef, Date.now(), this.phaseConfig, this.sessionStartAt);
+      const res = advancePhaseByKeyword(this.phaseRef, Date.now(), this.format, this.phaseConfig, this.sessionStartAt);
       if (!res.changed) return;
       this.phaseRef = res.state;
       this.store.set({ phase: res.state });
@@ -682,7 +682,7 @@ export class SessionController {
     this.store.set(source === 'realtime' ? { awaitingUser: false, userSpeaking: false } : { awaitingUser: false });
     this.turn = registerSpeak(this.turn, 'user', sentAt);
     this.grantSpeakWindow('user', sentAt + estimateSpeechMs(text));
-    if (this.format === 'panel' && currentPhase(this.phaseRef, this.phaseConfig).id === 'OPENING') {
+    if (this.format === 'panel' && currentPhase(this.phaseRef, this.format, this.phaseConfig).id === 'SELF_INTRO') {
       this.openingUserSpeechAt = sentAt;
     }
   }
@@ -850,7 +850,7 @@ export class SessionController {
   }
 
   private shouldAdvanceByKeyword(content: string): boolean {
-    const progress = phaseProgress(this.phaseRef, Date.now(), this.phaseConfig);
+    const progress = phaseProgress(this.phaseRef, Date.now(), this.format, this.phaseConfig);
     return this.keyPoints.shouldAdvancePhase(content, progress);
   }
 
@@ -993,6 +993,6 @@ export class SessionController {
   }
 
   private phaseConfigLength(): number {
-    return getPhaseDefs(this.phaseConfig).length;
+    return getPhaseDefs(this.format, this.phaseConfig).length;
   }
 }

@@ -277,7 +277,7 @@ test('会话接线：AI 台词进对应嘴会话，转写仍归属 ai:<roleId>�
   assert.equal(c.store.getSnapshot().realtimeStatus, 'active');
   assert.ok(mouths.includes('linjiajiejie'), '无领导讨论应为主持单开音色');
   assert.equal(new Set(mouths).size, 4, '3 位候选人 + 主持，四把不同的声音');
-  c.forcePhaseForTest({ phaseIndex: 2, phaseStartedAt: Date.now(), openingIndex: 4, openingStartedAt: Date.now(), finished: false });
+  c.forcePhaseForTest({ format: 'lgd' as const, phaseIndex: 2, phaseStartedAt: Date.now(), openingIndex: 4, openingStartedAt: Date.now(), warned: false, wrapped: false, finished: false });
   await c.triggerAITurn(roles[0], { speakerKind: 'candidate', force: true });
   assert.equal(spoken.length, 1);
   assert.equal(spoken[0].channel, 'mouth');
@@ -315,7 +315,7 @@ test('会话接线：AI 台词进对应嘴会话，转写仍归属 ai:<roleId>�
   );
   await down.initRealtime();
   assert.equal(down.store.getSnapshot().realtimeStatus, 'active', '耳会话仍在，用户侧保持全双工');
-  down.forcePhaseForTest({ phaseIndex: 2, phaseStartedAt: Date.now(), openingIndex: 4, openingStartedAt: Date.now(), finished: false });
+  down.forcePhaseForTest({ format: 'lgd' as const, phaseIndex: 2, phaseStartedAt: Date.now(), openingIndex: 4, openingStartedAt: Date.now(), warned: false, wrapped: false, finished: false });
   const before = spoken.length;
   await down.triggerAITurn(roles[1], { speakerKind: 'candidate', force: true });
   assert.equal(spoken.length, before, '嘴会话失败时不应再走 Realtime 播报');

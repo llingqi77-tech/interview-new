@@ -23,9 +23,10 @@ export function createPanelTurn(ids: string[], maxFollowUps = 2): PanelTurn {
   return {
     maxFollowUps,
     next() {
+      const who = order[index];
       index = (index + 1) % order.length;
       followUps = 0;
-      return order[index];
+      return who;
     },
     current() {
       return order[index];

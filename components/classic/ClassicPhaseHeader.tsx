@@ -6,7 +6,7 @@ import {
   phaseRemainingMs,
   phaseProgress,
   formatCountdown,
-  OPENING_TURN_MS,
+  INTRO_TURN_MS,
   type PhaseConfig,
   type PhaseState,
 } from '../../engine/phaseEngine';
@@ -19,7 +19,7 @@ import {
 /** 四阶段配色（倒计时光环 / 阶段 chip 共用）：审题 cyan / 陈述 violet / 讨论 blue / 总结 amber */
 export const STAGES = [
   { id: 'READING', short: '审题', color: '#22D3EE' },
-  { id: 'OPENING', short: '陈述', color: '#A78BFA' },
+  { id: 'INTRO', short: '陈述', color: '#A78BFA' },
   { id: 'FREE_DISCUSSION', short: '讨论', color: '#60A5FA' },
   { id: 'SUMMARY', short: '总结', color: '#FBBF24' },
 ] as const;
@@ -49,13 +49,13 @@ const ClassicPhaseHeader: React.FC<Props> = ({
     const timer = setInterval(() => setNowTs(Date.now()), 250);
     return () => clearInterval(timer);
   }, []);
-  const phase = currentPhase(phaseState, phaseConfig);
-  const remaining = phaseRemainingMs(phaseState, nowTs, phaseConfig);
-  const progress = phaseProgress(phaseState, nowTs, phaseConfig);
-  const openingSpeaker = currentOpeningSpeaker(phaseState, phaseConfig);
+  const phase = currentPhase(phaseState, phaseState.format, phaseConfig);
+  const remaining = phaseRemainingMs(phaseState, nowTs, phaseState.format, phaseConfig);
+  const progress = phaseProgress(phaseState, nowTs, phaseState.format, phaseConfig);
+  const openingSpeaker = currentOpeningSpeaker(phaseState, phaseConfig, phaseState.format);
   const openingRemaining =
-    phase.id === 'OPENING' ? Math.max(0, OPENING_TURN_MS - (nowTs - phaseState.openingStartedAt)) : 0;
-  const displayRemaining = phase.id === 'OPENING' ? Math.min(remaining, openingRemaining) : remaining;
+    phase.id === 'INTRO' ? Math.max(0, INTRO_TURN_MS - (nowTs - phaseState.openingStartedAt)) : 0;
+  const displayRemaining = phase.id === 'INTRO' ? Math.min(remaining, openingRemaining) : remaining;
 
   // 阶段视觉：当前阶段色驱动倒计时环 + chips；倒计时环周长（r=52）
   const stageIdx = Math.max(0, STAGES.findIndex((s) => s.id === phase.id));
@@ -75,7 +75,7 @@ const ClassicPhaseHeader: React.FC<Props> = ({
           <div className="min-w-0">
             <h2 className="text-sm font-black text-white tracking-tight truncate">
               {phase.label}
-              {phase.id === 'OPENING' && openingSpeaker && (
+              {phase.id === 'INTRO' && openingSpeaker && (
                 <span className="ml-2" style={{ color: stageColor }}>
                   {openingSpeaker === 'user' ? '轮到你陈述' : `${roles.find((c) => c.id === openingSpeaker)?.name ?? ''} 陈述中`}
                 </span>

@@ -106,7 +106,7 @@ const DiscussionPanel: React.FC<DiscussionPanelProps> = ({
   };
 
   // ---------- 渲染 ----------
-  const phase = currentPhase(phaseState, controller.phaseConfig);
+  const phase = currentPhase(phaseState, controller.format, controller.phaseConfig);
   // 文字输入面板可见性：手动展开 / 纯文字降级 / 已有草稿时自动展开
   const textVisible = textOpen || voiceCaps?.inputMode === 'text' || inputValue.length > 0;
 

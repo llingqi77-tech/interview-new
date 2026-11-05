@@ -120,8 +120,8 @@ export interface AvatarModelEntry {
 /** 群面阵型：lgd = 1 主持 + 3 AI 候选人 + 用户；panel = 2 或 3 位面试官 + 用户（结构化单面，默认 3） */
 export type InterviewFormat = 'lgd' | 'panel';
 
-/** 群面阶段（PRD 4.1.3 真实计时四阶段） */
-export type PhaseId = 'READING' | 'OPENING' | 'FREE_DISCUSSION' | 'SUMMARY';
+/** 阶段 id（群面四阶段 + 单面三阶段） */
+export type PhaseId = 'READING' | 'INTRO' | 'FREE_DISCUSSION' | 'SUMMARY' | 'SELF_INTRO' | 'QA' | 'COUNTER_ASK';
 
 export interface PhaseDef {
   id: PhaseId;
@@ -133,10 +133,20 @@ export interface PhaseDef {
   durationMs: number;
   /** 是否允许发言 */
   allowSpeech: boolean;
+  /** 侧边栏阶段说明 */
+  description: string;
+  /** 阶段序号（1 起） */
+  order: number;
 }
 
 /** 发言权调度事件（events 表，PRD 4.1.4 / D.3） */
-export type GameEventType = 'stage_change' | 'interrupt' | 'yield' | 'speak_grant';
+export type GameEventType =
+  | 'stage_change'
+  | 'interrupt'
+  | 'yield'
+  | 'speak_grant'
+  | 'time_warning'
+  | 'wrap_up';
 
 export interface GameEvent {
   event_type: GameEventType;

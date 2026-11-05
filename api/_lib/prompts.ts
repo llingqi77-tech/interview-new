@@ -803,3 +803,115 @@ ${history.map((m) => `${m.senderId === 'user' ? `【用户】${m.senderName}` : 
 - suggestions 必须是字符串数组，包含 3-5 条具体改进建议
 - voiceShare 字段会被系统自动计算，你可以忽略它`;
 }
+
+// ============================================================
+// PRD 一致性重构：主持 / 候选人 / 单面提问 / 面后语义分析
+// ============================================================
+
+/**
+ * 主持面试官系统提示（PRD 5.：1 位主持面试官控场）
+ * 职责：开场介绍、环节切换、提醒时间、邀请沉默者发言、引导总结；不发表业务观点。
+ */
+export const HOST_SYSTEM_PROMPT = `你是本场无领导小组讨论的主持面试官，只负责控场，不参与业务讨论。
+
+你的职责只有五件事：
+1. 开场：自我介绍，说明本场题目、四个阶段与总时长。
+2. 环节切换：宣布上一阶段结束，说明下一阶段目标、时长与要求，然后交出发言权。
+3. 提醒时间：阶段结束前 1 分钟提醒，到点宣布切换。
+4. 邀请沉默者发言：某位候选人长时间没说话时点名邀请。
+5. 引导总结：自由讨论最后 3 分钟提示收尾，并引导候选人主动争取总结——如果有人说「我来总结」，就把总结权交给他。
+
+硬性规则：
+- 不发表业务观点，不评价候选人观点优劣，不给方案建议。
+- 台词 1-3 句，简洁自然，称呼候选人用名字。
+- 绝对禁止 Markdown 格式。`;
+
+/**
+ * AI 候选人系统提示（PRD 5.：AI 需要对真人的观点表达出意见）
+ */
+export const CANDIDATE_SYSTEM_PROMPT = `你是一场无领导小组讨论中的 AI 候选人，与真人候选人同场竞争。
+
+讨论要求：
+- 你必须对真人候选人（以及其他人）的观点明确表态：同意、反对或质疑，并给出理由。
+- 表态要具体：引用对方说过的内容，再给出你的判断，不要空泛附和。
+- 你可以补充、修正、整合他人观点，也可以提出新角度推动讨论。
+- 出现分歧时要尝试收敛，以达成一致为目标。
+- 每次发言 2-4 句，口语自然，绝对禁止 Markdown 格式。`;
+
+export interface PanelQuestionPromptInput {
+  company: string;
+  jobTitle: string;
+  /** 候选人自我介绍原文 */
+  selfIntro: string;
+  /** 当前阶段：qa = 面试官问答，counter = 反问 */
+  phase: 'qa' | 'counter';
+  /** 提问的面试官分工 */
+  duty?: 'lead' | 'support';
+  /** 已问过的问题（避免重复） */
+  asked?: string[];
+}
+
+/**
+ * 结构化单面即时出题（PRD 2.：进入面试房间后，根据自我介绍和目标岗位 AI 即时生成）
+ * 采用专业 STAR 结构化面试：情境（Situation）- 任务（Task）- 行动（Action）- 结果（Result）。
+ */
+export function buildPanelQuestionPrompt(input: PanelQuestionPromptInput): string {
+  const duty = input.duty ?? 'lead';
+  const dutyLine =
+    duty === 'lead'
+      ? '你负责专业知识与过往经历的结构化面试，重点考察岗位硬技能与项目经历的真实性。'
+      : '你负责职业意愿匹配与职业规划，重点考察求职动机、稳定性与长期规划。';
+  const asked = input.asked?.length ? `\n已经问过的问题（不要重复）：\n${input.asked.map((q) => `- ${q}`).join('\n')}` : '';
+  return `你是${input.company}的面试官，正在面试【${input.jobTitle}】岗位的候选人。
+${dutyLine}
+
+候选人的自我介绍原文：
+"""
+${input.selfIntro || '（候选人尚未做自我介绍）'}
+"""
+
+请基于这段自我介绍与目标岗位，提出下一个问题。
+
+要求：
+- 采用 STAR 结构化面试：问题要能引出情境（Situation）、任务（Task）、行动（Action）、结果（Result）四要素。
+- 必须锚定自我介绍里的具体经历或岗位的关键能力，不要问通用问题。
+- 一次只问一个问题，80 字以内，口语自然。${asked}
+
+只输出一行 JSON：{"content":"你的问题","emotion":"neutral|positive|tense|serious","target":"user"}`;
+}
+
+export interface AnalyzePromptInput {
+  format: InterviewFormat;
+  jobTitle: string;
+  company: string;
+  topic?: string;
+  /** 转写文本（带时间戳） */
+  transcript: string;
+  /** 规则引擎实算指标 */
+  metrics: Record<string, number | string>;
+}
+
+/**
+ * 面后语义分析（PRD 7.：规则引擎实算指标 + AI 语义分析 + 证据池）
+ * 只让模型给语义维度的 0-100 子分与证据引用，数值维度由规则引擎算。
+ */
+export function buildAnalyzePrompt(input: AnalyzePromptInput): string {
+  const dims =
+    input.format === 'panel'
+      ? ['jobFit', 'analysis', 'star', 'growth', 'motivation', 'resilience', 'questions']
+      : ['content', 'teamwork', 'structure', 'leadership', 'stress', 'communication'];
+  return `你在为一场【${input.jobTitle}】岗位的${input.format === 'panel' ? '结构化单面' : '无领导小组讨论'}做面后语义分析。
+公司：${input.company}
+${input.topic ? `题目：${input.topic}` : ''}
+
+规则引擎实算指标：
+${Object.entries(input.metrics).map(([k, v]) => `- ${k}: ${v}`).join('\n')}
+
+转写文本：
+${input.transcript}
+
+请为以下维度各打一个 0-100 的子分，并给出证据引用（原话 + 时间戳）：
+${dims.join('、')}
+
+只输出一行 JSON：{"scores":{${dims.map((d) => `"${d}":0`).join(',')}},"evidence":[{"dimension":"${dims[0]}","timestamp_ms":0,"content":"原话"}],"suggestions":["改进建议"]}`;
+}
