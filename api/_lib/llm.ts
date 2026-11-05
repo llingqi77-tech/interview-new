@@ -202,3 +202,8 @@ export async function callDeepSeekStream(
   }
   return full;
 }
+
+/** 运行时配置变更后清空 provider 缓存（key / baseUrl / model 都可能变） */
+export function resetLlmRuntimeCache(): void {
+  runtimeCache.clear();
+}

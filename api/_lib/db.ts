@@ -39,7 +39,20 @@ export function getPool(): Pool {
 }
 
 /** 测试注入：允许测试替换连接池（不触真实数据库） */
+/** 测试注入：允许测试替换连接池（不触真实数据库） */
 export function setPoolForTesting(mock: Pool | null): void {
   pool = mock;
+}
+
+/** 运行时配置变更后重建连接池（DATABASE_URL / DB_POOL_MAX 改了，旧池必须丢弃） */
+export async function resetPool(): Promise<void> {
+  const current = pool;
+  pool = null;
+  if (!current) return;
+  try {
+    await current.end();
+  } catch {
+    // 关闭旧池失败不影响新配置生效
+  }
 }
 

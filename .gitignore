@@ -38,6 +38,10 @@ draft_*/
 .env.*
 !.env.example
 
+# 设置页（/api/settings）写入的运行时配置：含明文密钥，绝不入库
+.runtime-config.json
+.runtime-config.json.*.tmp
+
 # 证书与私钥
 *.pem
 *.key

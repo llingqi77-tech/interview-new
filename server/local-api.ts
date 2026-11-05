@@ -2,6 +2,7 @@ import type { Plugin, ViteDevServer } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { loadEnv } from 'vite';
 import { handleRealtimeUpgrade, isRealtimeUpgradePath } from './realtime-proxy.ts';
+import { loadRuntimeConfigSync } from '../api/_lib/runtimeConfig.ts';
 
 /**
  * 本地开发 API 中间件（修复：vite dev 下 /api/* 404 → 前端"题目生成失败"）
@@ -23,6 +24,7 @@ const STATIC_ROUTES: Record<string, string> = {
   '/api/asr-token': '/api/asr.ts',
   '/api/realtime-token': '/api/realtime-token.ts',
   '/api/pay': '/api/pay.ts',
+  '/api/settings': '/api/settings.ts',
 };
 
 // Use the same dispatcher as production; it extracts the ID and action from
@@ -61,6 +63,9 @@ export function localApiPlugin(mode: string): Plugin {
       for (const [k, v] of Object.entries(env)) {
         if (process.env[k] === undefined) process.env[k] = v;
       }
+
+      // 设置页写入的运行时配置覆盖 .env.local（页面填的 key 优先，清空则回落）
+      loadRuntimeConfigSync();
 
       server.middlewares.use('/api', (req, res, next) => {
         void (async () => {

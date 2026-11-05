@@ -5,6 +5,7 @@ import VoiceRoom from './components/VoiceRoom';
 import EvidenceReport from './components/EvidenceReport';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import PayModal from './components/PayModal';
+import SettingsModal from './components/SettingsModal';
 import WalletButton from './components/WalletButton';
 import { useWalletIdentity } from './src/wallet/context';
 import { SimulationState, InterviewFormat, Message, GameEvent, RoleCard, ReportV15, FeedbackData } from './types';
@@ -46,6 +47,7 @@ const App: React.FC = () => {
   const [feedbackError, setFeedbackError] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showPay, setShowPay] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   // 导航吸顶：滚动后背景透明度 white/6 → white/10
   const [navScrolled, setNavScrolled] = useState(false);
   useEffect(() => {
@@ -215,6 +217,9 @@ const App: React.FC = () => {
             <button onClick={() => setShowPay(true)} className="glass-btn-primary text-sm px-3 py-1.5">
               购买次数
             </button>
+            <button onClick={() => setShowSettings(true)} className="glass-btn-ghost text-sm px-3 py-1.5">
+              配置
+            </button>
             <button onClick={() => setShowPrivacy(true)} className="glass-btn-ghost text-sm px-3 py-1.5">
               隐私政策
             </button>
@@ -296,6 +301,8 @@ const App: React.FC = () => {
       </div>
 
       {showPrivacy && <PrivacyPolicy onClose={() => setShowPrivacy(false)} />}
+
+      {showSettings && <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />}
 
       {showPay && (
         <PayModal
