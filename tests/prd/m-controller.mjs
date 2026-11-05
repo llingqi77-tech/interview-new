@@ -219,6 +219,40 @@ export const checks = [
     },
   },
   {
+    id: 'C13', area, title: '自由讨论最后 3 分钟由主持面试官播报收尾引导语',
+    async run() {
+      const { controller } = await makeController({ phaseDurationsMs: { FREE_DISCUSSION: 1200 } });
+      controller.announceOpening();
+      controller.forcePhaseForTest({
+        format: 'lgd', phaseIndex: 2, phaseStartedAt: Date.now() - 100,
+        openingIndex: 0, openingStartedAt: 0, warned: false, wrapped: false, finished: false,
+      });
+      controller.init();
+      await new Promise((r) => setTimeout(r, 1400));
+      const snap = controller.store.getSnapshot();
+      controller.dispose();
+      const texts = snap.messages.map((m) => m.content).join(' | ');
+      assert.ok(texts.includes('讨论还剩 3 分钟'), `未播报收尾引导语：${texts.slice(0, 120)}`);
+    },
+  },
+  {
+    id: 'C14', area, title: '阶段结束前 1 分钟由面试官给出时间提醒',
+    async run() {
+      const { controller } = await makeController({ phaseDurationsMs: { FREE_DISCUSSION: 1500 } });
+      controller.announceOpening();
+      controller.forcePhaseForTest({
+        format: 'lgd', phaseIndex: 2, phaseStartedAt: Date.now() - 100,
+        openingIndex: 0, openingStartedAt: 0, warned: false, wrapped: false, finished: false,
+      });
+      controller.init();
+      await new Promise((r) => setTimeout(r, 1700));
+      const snap = controller.store.getSnapshot();
+      controller.dispose();
+      const texts = snap.messages.map((m) => m.content).join(' | ');
+      assert.ok(texts.includes('还有 1 分钟'), `未给出 1 分钟提醒：${texts.slice(0, 160)}`);
+    },
+  },
+  {
     id: 'C8', area, title: 'AI 不打断真人（调度器接线）',
     async run() {
       const c = read('src/session/sessionController.ts');

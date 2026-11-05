@@ -456,6 +456,14 @@ export class SessionController {
     this.phaseRef = res.state;
     this.store.set({ phase: res.state });
     this.pushEvents(res.events);
+    // 自由讨论最后 3 分钟：主持面试官播报收尾引导语（PRD 5.）
+    if (res.events.some((e) => e.event_type === 'wrap_up')) {
+      this.announceStage('FREE_DISCUSSION', 'SUMMARY', false, 'free->wrap');
+    }
+    // 阶段结束前 1 分钟：主持面试官给一句时间提醒（PRD 4.）
+    if (res.events.some((e) => e.event_type === 'time_warning')) {
+      this.announceTimeWarning();
+    }
     if (res.state.finished) {
       void this.finishSession();
       return true;
@@ -497,9 +505,9 @@ export class SessionController {
    * 阶段切换播报（PRD 4.）：固定引导语 TTS + 字幕气泡 + 倒计时提示音。
    * 由主持面试官（群面）/ 主面试官（单面）说出，不重复长篇说明。
    */
-  private announceStage(from: PhaseId | 'OPEN', to: PhaseId | 'FINISHED', short = false): void {
+  private announceStage(from: PhaseId | 'OPEN', to: PhaseId | 'FINISHED', short = false, explicitKey?: string): void {
     if (this.disposed) return;
-    const key = transitionKey(this.format, from, to);
+    const key = explicitKey ?? transitionKey(this.format, from, to);
     const speaker = this.format === 'panel' ? this.deps.roles[0] : HOST_CARD;
     const speakerName = speaker?.name ?? (this.format === 'panel' ? '主面试官' : '主持面试官');
     const atMs = this.elapsedAt(Date.now());
@@ -533,6 +541,41 @@ export class SessionController {
         rate: speaker.voice.rate,
         emotion: 'neutral',
         instruction: '沉稳清晰，主持人语气',
+      });
+    }
+  }
+
+  /** 阶段结束前 1 分钟的时间提醒（一句话，不打断流程） */
+  private announceTimeWarning(): void {
+    if (this.disposed) return;
+    const def = currentPhase(this.phaseRef, this.format, this.phaseConfig);
+    const speaker = this.format === 'panel' ? this.deps.roles[0] : HOST_CARD;
+    const speakerName = speaker?.name ?? '面试官';
+    const content = `还有 1 分钟，${def.label}环节即将结束。`;
+    const atMs = this.elapsedAt(Date.now());
+    this.store.set({
+      messages: [
+        ...this.snap.messages,
+        {
+          id: `warn-${atMs}`,
+          senderId: speaker?.id ?? 'host',
+          senderName: speakerName,
+          content,
+          timestamp: Date.now(),
+          type: 'system',
+          startMs: atMs,
+          endMs: atMs + 3000,
+          source: 'llm',
+          emotion: 'neutral',
+        },
+      ],
+    });
+    if (speaker) {
+      void this.voice?.speak(content, {
+        voiceId: speaker.voice.voice_id,
+        rate: speaker.voice.rate,
+        emotion: 'neutral',
+        instruction: '沉稳提醒',
       });
     }
   }
