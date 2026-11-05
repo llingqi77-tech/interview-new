@@ -517,8 +517,8 @@ test('缺陷回归 · DeviceCheck：麦克风流与摄像头流分开持有，�
   assert.ok(!/streamRef\.current = stream/.test(dc), '不得再用一个 ref 覆盖两条流');
 });
 
-test('缺陷回归 · DiscussionPanel：ASR 最终转写不得写两遍', () => {
-  const panel = read('components/DiscussionPanel.tsx');
+test('缺陷回归 · 房间：ASR 最终转写不得写两遍', () => {
+  const panel = read('components/RoomStage.tsx') + read('src/session/sessionController.ts');
   assert.ok(/asrFinalRef/.test(panel), '缺少 ASR 最终转写去重标记');
   assert.ok(/finalText !== asrFinalRef\.current/.test(panel), '停止录音时不得重复追加已由回调写入的转写');
 });

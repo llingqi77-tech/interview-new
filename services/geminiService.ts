@@ -36,6 +36,12 @@ export interface ReplyParams {
   speakerKind?: 'candidate' | 'host' | 'interviewer';
   phaseRemainingMs?: number;
   sessionId?: number | null;
+  /** 目标公司（单面即时出题用） */
+  company?: string;
+  /** 单面：候选人自我介绍原文（服务端据此按 STAR 即时出题） */
+  selfIntro?: string;
+  /** 单面：当前提问面试官分工 */
+  panelDuty?: 'lead' | 'support' | null;
 }
 
 interface LlmResponse<T> {
@@ -128,6 +134,9 @@ export async function generateAIReply(
     currentKeyPointIndex: params.currentKeyPointIndex ?? 0,
     voiceMode: params.voiceMode ?? false,
     speakerKind: params.speakerKind ?? 'candidate',
+    company: params.company ?? '',
+    selfIntro: params.selfIntro ?? '',
+    panelDuty: params.panelDuty ?? null,
     phaseRemainingMs: params.phaseRemainingMs,
     session_id: params.sessionId ?? null,
   };

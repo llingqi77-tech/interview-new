@@ -92,6 +92,8 @@ export interface SessionDeps {
   panelOpeningAdvanceMs?: number;
   /** 测试注入：替换 Realtime 建链 */
   createRealtimeClient?: (opts: RealtimeClientOptions) => Promise<RealtimeClient>;
+  /** 测试注入：替换提示音播放（默认 WebAudio） */
+  playBeep?: (kind: import('../../engine/beep.ts').BeepKind) => void;
   /**
    * 测试注入：替换嘴会话分路池。
    * 缺省时按本场音色各开一条 Realtime 嘴会话。耳会话仍走 createRealtimeClient。
@@ -148,6 +150,8 @@ export class SessionController {
   private summaryByUser = false;
   /** 开场白是否已播报 */
   private openingAnnounced = false;
+  /** 单面：候选人自我介绍原文（用于 STAR 即时出题） */
+  private selfIntroText = '';
   private lastHostNudgeAt = 0;
   private userStream: MediaStream | null = null;
   private visionClient: VisionClient | null = null;
@@ -508,8 +512,9 @@ export class SessionController {
     ]);
     // 提示音：阶段开始 + 结束前 1 分钟 + 到点
     const def = currentPhase(this.phaseRef, this.format, this.phaseConfig);
+    const beep = this.deps.playBeep ?? playBeep;
     for (const cue of beepCuesFor({ durationMs: def.durationMs })) {
-      if (cue.kind === 'start') playBeep('start');
+      if (cue.kind === 'start') beep('start');
     }
     if (speaker) {
       void this.voice?.speak(msg.content, {
@@ -666,6 +671,9 @@ export class SessionController {
         speakerKind,
         phaseRemainingMs: phaseRemainingMs(this.phaseRef, startedAt, this.format, this.phaseConfig),
         sessionId: this.deps.sessionId,
+        company: this.deps.state.company,
+        selfIntro: this.selfIntroText,
+        panelDuty: this.panelDutyOf(card.id),
       }),
       (chunk) => this.store.set({ streamingText: this.snap.streamingText + chunk }),
     );
@@ -767,6 +775,7 @@ export class SessionController {
     this.grantSpeakWindow('user', sentAt + estimateSpeechMs(text));
     if (this.format === 'panel' && currentPhase(this.phaseRef, this.format, this.phaseConfig).id === 'SELF_INTRO') {
       this.openingUserSpeechAt = sentAt;
+      this.selfIntroText = `${this.selfIntroText}${text}`.slice(0, 1200);
     }
     // 真人主动争取总结（PRD 5.）：改由真人总结并加分
     if (this.format === 'lgd' && detectSummaryIntent(text)) {
@@ -781,6 +790,14 @@ export class SessionController {
         },
       ]);
     }
+  }
+
+  /** 单面：按面试官在 roles 里的位置判定主/副分工 */
+  private panelDutyOf(cardId: string): 'lead' | 'support' | null {
+    if (this.format !== 'panel') return null;
+    const idx = this.deps.roles.findIndex((r) => r.id === cardId);
+    if (idx < 0) return null;
+    return idx === 0 ? 'lead' : 'support';
   }
 
   private recordUserBargeIn(interruptedCharId: string | null): void {

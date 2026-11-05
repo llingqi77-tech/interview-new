@@ -90,6 +90,12 @@ export interface HistoryItem {
 }
 
 export interface ReplyPayload {
+  /** 目标公司（单面即时出题用） */
+  company?: string;
+  /** 单面：候选人自我介绍原文（用于即时出题） */
+  selfIntro?: string;
+  /** 单面：当前提问面试官分工 */
+  panelDuty?: 'lead' | 'support';
   card: RoleCard;
   topic: string;
   jobTitle: string;

@@ -1,5 +1,6 @@
 import React, { lazy, Suspense } from 'react';
-import type { Evidence } from '../types';
+import type { Evidence, Message } from '../types';
+import { locateEvidence } from '../engine/evidenceLocator';
 import type { InterviewReport } from '../engine/reportEngine';
 import {
   DIMENSION_CRITERIA,
@@ -29,6 +30,8 @@ export interface ReportViewProps {
   onDelete: () => void;
   /** 点击证据定位到对应发言 */
   onLocate?: (messageIndex: number) => void;
+  /** 本场转写（用于证据定位弹层） */
+  messages?: Message[];
 }
 
 export function formatTimestamp(ms: number): string {
@@ -138,8 +141,19 @@ const DimensionRow: React.FC<{
   );
 };
 
-const ReportView: React.FC<ReportViewProps> = ({ report, error, onRetry, onRestart, onDelete, onLocate }) => {
+const ReportView: React.FC<ReportViewProps> = ({ report, error, onRetry, onRestart, onDelete, onLocate, messages }) => {
   const wallet = useWalletIdentity();
+  const [located, setLocated] = React.useState<Evidence | null>(null);
+  const locatedView = located && messages ? locateEvidence(messages, located) : null;
+  const handleLocate = (index: number) => {
+    onLocate?.(index);
+    if (!messages) return;
+    const dims: Record<string, { evidence: Evidence[] }> = report?.dimensions ?? {};
+    const ev = Object.values(dims)
+      .flatMap((d) => d.evidence)
+      .find((e) => e.message_index === index);
+    if (ev) setLocated(ev);
+  };
   if (!report) {
     return (
       <div className="glass-panel p-8 text-center">
@@ -187,10 +201,44 @@ const ReportView: React.FC<ReportViewProps> = ({ report, error, onRetry, onResta
             id={id}
             dim={report.dimensions[id]}
             weight={Math.round((report.weights?.[id] ?? 0) * 10) / 10}
-            onLocate={onLocate}
+            onLocate={handleLocate}
           />
         ))}
       </div>
+
+      {locatedView && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          data-testid="evidence-locate"
+          onClick={() => setLocated(null)}
+        >
+          <div className="glass-panel max-w-lg w-full p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-white mb-2">定位到原话</h3>
+            {locatedView.message ? (
+              <div className="space-y-2">
+                {locatedView.context.map((m, i) => (
+                  <div
+                    key={`${m.id}-${i}`}
+                    className={`text-sm rounded-lg px-3 py-2 ${
+                      m === locatedView.message ? 'bg-cyan-400/15 text-white' : 'text-white/55'
+                    }`}
+                  >
+                    <span className="text-[10px] text-white/40 mr-2">
+                      {m.senderName} · {formatTimestamp(m.startMs ?? m.timestamp)}
+                    </span>
+                    {m.content}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-white/60">{locatedView.fallback}</p>
+            )}
+            <button type="button" onClick={() => setLocated(null)} className="glass-btn mt-4 px-4 py-2 text-sm">
+              关闭
+            </button>
+          </div>
+        </div>
+      )}
 
       {isCertConfigured() && wallet.configured && !wallet.isLoading && (
         <Suspense fallback={null}>

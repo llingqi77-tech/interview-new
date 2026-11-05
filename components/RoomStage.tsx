@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { GameEvent, InterviewFormat, InterviewerCard, Message, RoleCard, SimulationState, VisualFeatureRow } from '../types';
 import { useSession } from '../src/session/useSession';
 import { buildRoomView } from '../engine/roomView';
@@ -44,6 +44,10 @@ const RoomStage: React.FC<RoomStageProps> = ({
 }) => {
   const [textInputOpen, setTextInputOpen] = useState(inputMode === 'text');
   const [topicOpen, setTopicOpen] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [partial, setPartial] = useState('');
+  /** ASR 最终转写去重标记：回调已写入的文本，stop 时不得再追加一遍 */
+  const asrFinalRef = useRef('');
 
   const deps = useMemo(
     () => ({
@@ -65,6 +69,34 @@ const RoomStage: React.FC<RoomStageProps> = ({
   useEffect(() => {
     controller.announceOpening();
   }, [controller]);
+
+  /**
+   * 语音输入主按钮（PRD 4. 输入方式降级链）
+   * realtime → 直接抢话；asr → 按键说话；webspeech → 浏览器识别；text → 打开文字输入
+   */
+  const handleVoiceInput = async () => {
+    if (inputMode === 'text') {
+      setTextInputOpen(true);
+      return;
+    }
+    if (listening) {
+      const finalText = await controller.stopUserAsr();
+      setListening(false);
+      setPartial('');
+      if (finalText && finalText !== asrFinalRef.current) controller.sendUserSpeech(finalText);
+      return;
+    }
+    controller.bargeIn();
+    asrFinalRef.current = '';
+    setListening(true);
+    await controller.startUserAsr(
+      (text) => setPartial(text),
+      (final) => {
+        asrFinalRef.current = final;
+        controller.sendUserSpeech(final);
+      }
+    );
+  };
 
   const view = buildRoomView({
     format,
@@ -91,10 +123,12 @@ const RoomStage: React.FC<RoomStageProps> = ({
       <InterviewRoom
         {...view}
         onSend={(text) => controller.sendTextMessage(text)}
-        onBargeIn={() => controller.bargeIn()}
+        onBargeIn={() => void handleVoiceInput()}
         onToggleMute={() => controller.toggleMic()}
         onToggleCamera={() => controller.toggleCamera()}
         onToggleTextInput={() => setTextInputOpen((v) => !v)}
+        listening={listening}
+        partialText={partial}
         onEnd={() => void controller.finishSession()}
         onViewTopic={() => setTopicOpen(true)}
         onSkipAiIntro={() => controller.skipAiIntro()}

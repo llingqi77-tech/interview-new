@@ -257,6 +257,7 @@ const App: React.FC = () => {
                 report={report}
                 error={feedbackError ? '报告生成失败，请重试' : null}
                 onRetry={() => void finishSimulation(finishedMessages, finishedEvents, sessionStartAt)}
+                messages={finishedMessages}
                 onRestart={restart}
                 onDelete={() => {
                   if (sessionId) void handleDeleteRecords(sessionId);

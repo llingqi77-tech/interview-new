@@ -6,6 +6,7 @@ import {
   buildFeedbackPrompt,
   buildHostPrompt,
   buildPanelInterviewerPrompt,
+  buildPanelQuestionPrompt,
   buildReplyPrompt,
   buildTopicPrompt,
   type HistoryItem,
@@ -138,12 +139,28 @@ export function buildReplyPayload(payload: Payload, card: RoleCard): ReplyPayloa
     voiceMode: Boolean(payload.voiceMode),
     speakerKind,
     phaseRemainingMs: finiteNumber(payload.phaseRemainingMs),
+    company: textField(payload, 'company'),
+    selfIntro: typeof payload.selfIntro === 'string' ? payload.selfIntro : undefined,
+    panelDuty: payload.panelDuty === 'support' ? 'support' : payload.panelDuty === 'lead' ? 'lead' : undefined,
   };
 }
 
 function promptFor(reply: ReplyPayload): string {
   if (reply.speakerKind === 'host') return buildHostPrompt(reply);
-  if (reply.speakerKind === 'interviewer') return buildPanelInterviewerPrompt(reply);
+  if (reply.speakerKind === 'interviewer') {
+    // 单面：有自我介绍时按 STAR 结构化即时出题（PRD 2. / 6.）
+    if (reply.selfIntro && reply.selfIntro.trim()) {
+      return buildPanelQuestionPrompt({
+        company: reply.company ?? '',
+        jobTitle: reply.jobTitle,
+        selfIntro: reply.selfIntro,
+        phase: 'qa',
+        duty: reply.panelDuty ?? 'lead',
+        asked: reply.history.filter((h) => h.senderId !== 'user').map((h) => h.content).slice(-6),
+      });
+    }
+    return buildPanelInterviewerPrompt(reply);
+  }
   return buildReplyPrompt(reply);
 }
 

@@ -45,6 +45,10 @@ export interface InterviewRoomProps {
   speakingId?: string | null;
   /** 真人是否已说完自我介绍（显示「跳过 AI 自我介绍」） */
   canSkipAiIntro?: boolean;
+  /** 正在录音（按键说话） */
+  listening?: boolean;
+  /** 实时识别中的半成品文本 */
+  partialText?: string;
   onSend: (text: string) => void;
   onBargeIn: () => void;
   onToggleMute: () => void;
@@ -161,7 +165,7 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
   const {
     format, phase, topic, keyPoints, messages, roles, interviewers,
     speakingRight, trajectory, inputMode, thinking, streaming,
-    muted, cameraOn, textInputOpen, degraded, speakingId, canSkipAiIntro,
+    muted, cameraOn, textInputOpen, degraded, speakingId, canSkipAiIntro, listening, partialText,
     onSend, onBargeIn, onToggleMute, onToggleCamera, onToggleTextInput, onEnd, onViewTopic, onSkipAiIntro,
   } = props;
   const [draft, setDraft] = React.useState('');
@@ -228,6 +232,12 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
             {speakingRight.label}
           </div>
 
+          {listening && partialText && (
+            <div className="glass-chip text-xs text-cyan-200 px-3 py-1.5" data-testid="asr-partial">
+              识别中：{partialText}
+            </div>
+          )}
+
           {textInputOpen && (
             <div className="flex gap-2">
               <input
@@ -256,10 +266,11 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
             <button
               type="button"
               onClick={onBargeIn}
-              className="glass-btn-primary text-xs px-4 py-1.5"
+              data-listening={listening ? 'true' : 'false'}
+              className={`text-xs px-4 py-1.5 ${listening ? 'glass-btn-danger' : 'glass-btn-primary'}`}
               title={INPUT_MODE_LABELS[inputMode]}
             >
-              语音输入
+              {listening ? '停止录音' : '语音输入'}
             </button>
             <button type="button" onClick={onBargeIn} className="glass-btn-ghost text-xs px-3 py-1.5">
               打断 AI

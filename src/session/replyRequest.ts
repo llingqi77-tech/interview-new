@@ -17,6 +17,9 @@ export interface ReplyRequestInput {
   speakerKind: SpeakerKind;
   phaseRemainingMs: number;
   sessionId: number | null;
+  company?: string;
+  selfIntro?: string;
+  panelDuty?: 'lead' | 'support' | null;
 }
 
 export function buildReplyParams(input: ReplyRequestInput): ReplyParams {
@@ -35,5 +38,8 @@ export function buildReplyParams(input: ReplyRequestInput): ReplyParams {
     speakerKind: input.speakerKind,
     phaseRemainingMs: input.phaseRemainingMs,
     sessionId: input.sessionId,
+    company: input.company,
+    selfIntro: input.selfIntro,
+    panelDuty: input.panelDuty ?? null,
   };
 }
