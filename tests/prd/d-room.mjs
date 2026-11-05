@@ -211,6 +211,15 @@ export const checks = [
     },
   },
   {
+    id: 'R21', area, title: '移动端：侧边栏隐藏时提供题目/角色抽屉',
+    async run() {
+      const C = await load('components/InterviewRoom.tsx');
+      const html = render(C, fixture());
+      assert.ok(/data-testid="mobile-panel-toggle"/.test(html), '缺少移动端抽屉入口');
+      assert.ok(/md:hidden/.test(html), '移动端抽屉未按断点控制');
+    },
+  },
+  {
     id: 'R20', area, title: '阶段切换同步触发提示音与状态栏阶段名更新',
     async run() {
       const p = await load('engine/phaseEngine.ts');

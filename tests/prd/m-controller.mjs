@@ -253,6 +253,26 @@ export const checks = [
     },
   },
   {
+    id: 'C15', area, title: '自由讨论中调度器把发言权交给 AI 候选人（不是主持）',
+    async run() {
+      const { controller, roles } = await makeController();
+      controller.forcePhaseForTest({
+        format: 'lgd', phaseIndex: 2, phaseStartedAt: Date.now(),
+        openingIndex: 0, openingStartedAt: 0, warned: false, wrapped: false, finished: false,
+      });
+      controller.scheduleNextTurn(10);
+      await new Promise((r) => setTimeout(r, 400));
+      const snap = controller.store.getSnapshot();
+      controller.dispose();
+      const spoken = snap.messages.filter((m) => m.type === 'message');
+      assert.ok(spoken.length >= 1, '调度器未安排任何发言');
+      assert.ok(
+        roles.some((r) => r.id === spoken[0].senderId),
+        `发言者不是 AI 候选人：${spoken[0].senderId}`
+      );
+    },
+  },
+  {
     id: 'C8', area, title: 'AI 不打断真人（调度器接线）',
     async run() {
       const c = read('src/session/sessionController.ts');

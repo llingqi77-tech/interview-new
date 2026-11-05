@@ -169,6 +169,7 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
     onSend, onBargeIn, onToggleMute, onToggleCamera, onToggleTextInput, onEnd, onViewTopic, onSkipAiIntro,
   } = props;
   const [draft, setDraft] = React.useState('');
+  const [mobilePanelOpen, setMobilePanelOpen] = React.useState(false);
   /** 发言高亮：优先用显式 speakingId，否则按发言权提示里的名字反查 */
   const activeId =
     speakingId ?? roles.find((r) => r.name === speakingRight.speakerName)?.id ?? null;
@@ -199,11 +200,59 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
         <button type="button" onClick={onViewTopic} className="glass-btn-ghost text-xs px-3 py-1.5">
           查看题目
         </button>
+        <button
+          type="button"
+          onClick={() => setMobilePanelOpen((v) => !v)}
+          className="md:hidden glass-btn-ghost text-xs px-3 py-1.5"
+          data-testid="mobile-panel-toggle"
+        >
+          题目/角色
+        </button>
         <CountdownRing remainingMs={phase.remainingMs} progress={phase.progress} label={phase.label} />
         <button type="button" onClick={onEnd} className="glass-btn-ghost text-xs px-3 py-1.5">
           结束
         </button>
       </div>
+
+      {/* 移动端抽屉：侧边栏在窄屏隐藏，这里给同一份信息 */}
+      {mobilePanelOpen && (
+        <div className="md:hidden glass-panel p-3 space-y-2" data-testid="mobile-panel">
+          <div>
+            <div className="text-xs font-semibold text-white/80 mb-1">题目</div>
+            <p className="text-[11px] text-white/60 leading-relaxed">
+              {topic || '面试题目将在你完成自我介绍后，按目标岗位即时生成（STAR 结构化）'}
+            </p>
+          </div>
+          {keyPoints.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-white/80 mb-1">讨论要点</div>
+              <ul className="text-[11px] text-white/60 space-y-1">
+                {keyPoints.map((k) => (
+                  <li key={k}>· {k}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-1.5">
+            {format !== 'panel' &&
+              roles.map((r) => (
+                <span
+                  key={r.id}
+                  data-speaking={activeId === r.id ? 'true' : 'false'}
+                  className={`glass-chip text-[10px] px-2 py-0.5 ${activeId === r.id ? 'ring-1 ring-cyan-300/60 text-white' : 'text-white/60'}`}
+                >
+                  {r.name}
+                </span>
+              ))}
+            {interviewers.map((i) => (
+              <span key={i.id} className="glass-chip text-[10px] px-2 py-0.5 text-white/60">
+                {i.name} · {i.archetype}
+              </span>
+            ))}
+          </div>
+          <p className="text-[11px] text-white/45">{phase.description}</p>
+        </div>
+      )}
 
       {degraded && (
         <div className="badge-warning rounded-xl px-3 py-1.5 text-xs text-amber-200" data-testid="degraded-banner">

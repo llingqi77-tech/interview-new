@@ -59,3 +59,28 @@ PRD 是唯一验收标准。历史实现（旧 5 维权重、旧阶段时长、�
 
 - 基线（fed9d2e）：`prd_pass=16/146`。旧实现只有 LGD 单模式、5 维报告（content/voice/visual/stress/teamwork）、
   审题 10 秒、无引导语模块、无题库、无 6 位面试官形象、无发言轨迹条、无环形倒计时。
+- R1（87）：纯逻辑地基一次铺完 —— scoring / phaseScripts / beep / inputMode / speakingRight / trajectory /
+  privacy / reportCopy / setupValidation / roster / scheduler / summaryIntent / discussionPlan / panelTurn /
+  deviceCheck + topicBank / interviewers / generateCandidates。**教训**：heredoc 单条命令上限约 7KB，超了会被静默截断。
+- R2（108）：phaseEngine 双模式重写（LGD 3/4/15/3min + Panel 1/9/2min、1 分钟提醒、收尾提示、跳过 AI 自我介绍、
+  beep 元数据、transitionKey）+ prompts。**教训**：旧 panel 复用 LGD 阶段 id，改 id 后 controller 的 panel 分支要同步；
+  `tickPhase` 的 time_warning 会让 `changed=true`，测试不能断言 `changed===false`。
+- R3（123）：reportEngine 双模式重写（8/9 维、规则+语义融合、证据池、分数段、权重分摊、主动总结加分）+
+  ReportView + 摘掉付费墙。**教训**：`ReportV15` 换 `InterviewReport` 要连带改 analyze/feedback/certificate/geminiService。
+- R4（154）：三个大组件接线 + RoomStage 容器 + App 全流程重写 + 引导语播报/提示音/总结意图接线 + 超时降级。
+  **教训（最重要）**：检查体全绿时浏览器实测仍暴露 4 个真 bug —— getUserMedia 无超时卡在「检测中」、
+  createSession 无超时卡在设备页、摄像头默认开启导致无法进入、结束按钮走成退出而不是出报告。
+  **结论：组件级检查不能替代真实浏览器走查。**
+- R5（167）：单面 STAR 即时出题接线、证据定位弹层、ASR 按键说话接线、删除旧房间组件。
+  **教训**：删组件会连带打掉旧测试的断言目标，必须同步改到新组件；ASR 去重逻辑原本在 DiscussionPanel，
+  删掉后要在 RoomStage 重建。
+- R6（171）：修 3 个浏览器实测暴露的致命 bug —— 服务端 `resolveReplyCard` 只认 12 张静态卡导致每次 AI 发言 400、
+  LLM 失败无兜底导致讨论中断、单面侧边栏面试官重复。加 `engine/fallbackLines.ts`。
+  **教训**：DeepSeek 账户 402 余额不足，AI 发言必然失败 —— 这反而验证了降级链路。
+- R7（175）：收尾引导语 + 1 分钟提醒接线、移动端题目/角色抽屉、题库要点贯通 controller、README 按 PRD 重写。
+
+## 已知环境限制
+
+- DeepSeek 账户余额不足（402），LLM 语义分路径未实测；报告走本地规则引擎，AI 发言走兜底台词。
+- 本机无麦克风/摄像头，realtime 全双工与视觉维度未在浏览器实测；ASR/文字路径已验证。
+- 部署域名 groupinterview.online 只写进配置，未实际部署。

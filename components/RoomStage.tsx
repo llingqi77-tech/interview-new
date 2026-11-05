@@ -58,9 +58,10 @@ const RoomStage: React.FC<RoomStageProps> = ({
       cameraEnabled,
       facingMode,
       format,
+      keyPoints,
       onFinish,
     }),
-    [state, roles, sessionId, consentSaveTranscript, cameraEnabled, facingMode, format, onFinish]
+    [state, roles, sessionId, consentSaveTranscript, cameraEnabled, facingMode, format, keyPoints, onFinish]
   );
 
   const { controller, snapshot } = useSession(deps);

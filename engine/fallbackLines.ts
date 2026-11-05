@@ -24,7 +24,8 @@ const PANEL_INTERVIEWER_LINES = [
 const HOST_LINES = [
   '我们继续，请注意时间。',
   '还有哪位想补充？',
-  '时间过半，请大家聚焦到还没达成一致的点上。',
+  '请大家聚焦到还没达成一致的点上。',
+  '刚才这一点还有不同意见吗？',
 ];
 
 export function fallbackLine(kind: FallbackKind, format: InterviewFormat, seed = Date.now()): string {

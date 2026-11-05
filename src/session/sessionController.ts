@@ -95,6 +95,8 @@ export interface SessionDeps {
   createRealtimeClient?: (opts: RealtimeClientOptions) => Promise<RealtimeClient>;
   /** 测试注入：替换提示音播放（默认 WebAudio） */
   playBeep?: (kind: import('../../engine/beep.ts').BeepKind) => void;
+  /** 题目要点（来自题库/生成结果；缺省时从题面抽取） */
+  keyPoints?: string[];
   /**
    * 测试注入：替换嘴会话分路池。
    * 缺省时按本场音色各开一条 Realtime 嘴会话。耳会话仍走 createRealtimeClient。
@@ -926,7 +928,10 @@ export class SessionController {
   // ---------- 内部：设备 / 落库 ----------
 
   private loadKeyPoints(): void {
-    const points = this.format === 'panel' ? [] : extractKeyPoints(this.deps.state.topic);
+    // 优先用题库/生成结果给出的要点；没有时退回从题面正则抽取
+    const provided = this.deps.keyPoints ?? [];
+    const points =
+      this.format === 'panel' ? [] : provided.length > 0 ? provided : extractKeyPoints(this.deps.state.topic);
     this.keyPoints.reset(points);
     this.store.set({ currentKeyPoint: this.keyPoints.current });
   }
