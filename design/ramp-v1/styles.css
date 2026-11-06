@@ -60,3 +60,44 @@ dialog.preview-mobile{width:358px;max-width:calc(100% - 32px);padding:20px;max-h
 .switch[aria-checked=false]:after{right:21px}
 @container app (max-width:650px){.desktop-topic-btn{display:none}.count-btn,.btn.small{min-height:44px;min-width:44px}.segment{min-height:44px}.room-end{min-width:44px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+/* Review v1.1: quieter surfaces, one clear hierarchy. */
+.page-head .eyebrow,.room-context .eyebrow,.page-head>span,.flow,.card-index,.setup-main .card-head>.muted,.inline-note,.panel-note,.setup-bottom>p,.summary-cover .abstract,.summary-cover .eyebrow,.summary-cover>p,.summary-foot,.system-line,.phase-steps,.message-listening,.subtle-right,.toolbar-foot,.key-points,.room-sidebar>.room-side-card:last-child,.camera-placeholder{display:none!important}
+.setup-main>.card{border:0;border-radius:0;background:transparent;padding:24px 0}
+.setup-main>.card+.card{border-top:1px solid var(--line,#e2dfd9)}
+.setup-bottom{justify-content:flex-end}
+.summary-card{border:0;background:transparent}
+.summary-cover{background:transparent;padding-bottom:12px}
+.summary-body{padding-top:0}
+.room-sidebar>.card{border:0;border-radius:0;background:transparent;box-shadow:none}
+.room-sidebar>.card+.card{border-top:1px solid var(--line,#e2dfd9)}
+.message-bubble{border:0!important;background:transparent!important;box-shadow:none!important;padding:4px 0!important}
+.message.user .message-bubble{background:#f4f2f0!important;padding:12px 16px!important;border-radius:8px}
+.message-meta .chip{border:0;background:transparent;padding:0;color:var(--muted)}
+.persona{box-shadow:none!important}
+.dimension-card{box-shadow:none!important}
+.page-head p:empty{display:none}
+
+.focused-page .app-header,.focused-page .app-footer{display:none!important}
+.home-return{padding:10px 24px;flex:none}.home-return .btn{font-size:13px}
+#modal.reading-modal{width:min(800px,calc(100vw - 40px));max-height:85vh;border:0;border-radius:16px;padding:32px}
+.reading-modal::backdrop{background:rgba(12,10,8,.48);backdrop-filter:blur(4px)}
+.reading-topic h3{font-size:26px;margin:24px 0 16px}.reading-topic p{font-size:20px;line-height:1.9;margin-bottom:28px}
+@media(max-width:600px){#modal.reading-modal{padding:24px}.reading-topic h3{font-size:22px}.reading-topic p{font-size:17px}.home-return{padding:6px 16px}}
+
+/* Topic selection uses native, mutually exclusive radio controls. */
+.topic-radios{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 32px;margin:20px 0 8px}
+.topic-radio{display:flex;align-items:center;gap:12px;min-height:48px;cursor:pointer;font-size:16px;color:var(--ink)}
+.topic-radio input{appearance:auto;width:20px;height:20px;margin:0;accent-color:#0c0a08;cursor:pointer;flex:none}
+.topic-radio:has(input:checked){font-weight:600}
+.topic-radio input:focus-visible{outline:2px solid #285f82;outline-offset:4px}
+.setup-bottom{justify-content:center!important;padding:24px 0 32px}
+.setup-bottom>.btn.primary{width:min(100%,360px);min-height:60px;font-size:18px;justify-content:center;border-radius:10px}
+@container(max-width:600px){.topic-radios{grid-template-columns:1fr;gap:4px}.setup-bottom>.btn.primary{width:100%}}
+
+/* Compact topic group: size columns to labels instead of stretching across the form. */
+.topic-radios{grid-template-columns:repeat(2,max-content);gap:4px 40px;margin:8px 0 0;justify-content:start}
+.topic-radio{min-height:44px;gap:10px;font-size:15px}
+.setup-main>.card:has(.topic-radios){padding-top:20px;padding-bottom:8px}
+.setup-main>.card:has(.topic-radios) .card-head{margin-bottom:12px}
+@container(max-width:420px){.topic-radios{grid-template-columns:1fr;gap:0;margin-top:4px}.topic-radio{min-height:44px}}

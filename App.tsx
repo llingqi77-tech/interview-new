@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import SetupForm, { type SetupParams } from './components/SetupForm';
 import DeviceCheck, { type DeviceCheckResult } from './components/DeviceCheck';
 import RoomStage from './components/RoomStage';
@@ -47,28 +47,6 @@ const App: React.FC = () => {
   const [feedbackError, setFeedbackError] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [navScrolled, setNavScrolled] = useState(false);
-  const navRef = useRef<HTMLDivElement>(null);
-  /** 导航实际高度：吸顶条高度随内容（本地模式 chip / 换行）变化，写死 57px 会让内容钻到导航下面 */
-  const [navHeight, setNavHeight] = useState(57);
-
-  useEffect(() => {
-    const onScroll = () => setNavScrolled(window.scrollY > 8);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
-  useEffect(() => {
-    const el = navRef.current;
-    if (!el) return;
-    const sync = () => setNavHeight(el.offsetHeight);
-    sync();
-    const ro = new ResizeObserver(sync);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
   // 切换环节时回到顶部：否则上一页的滚动位置会让新页面标题钻到吸顶导航下面
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -185,33 +163,16 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen">
-      <svg aria-hidden="true" focusable="false" className="absolute w-0 h-0 overflow-hidden">
-        <defs>
-          <filter id="glass-distortion">
-            <feTurbulence type="fractalNoise" baseFrequency="0.008 0.012" numOctaves="2" />
-            <feDisplacementMap in="SourceGraphic" scale="12" />
-          </filter>
-        </defs>
-      </svg>
-
-      <div className="aurora-stage" aria-hidden="true">
-        <div className="aurora-blob aurora-blob-a" />
-        <div className="aurora-blob aurora-blob-b" />
-        <div className="aurora-blob aurora-blob-c" />
-      </div>
-
-      <div
-        ref={navRef}
-        className={`glass-nav ${navScrolled ? 'glass-nav-scrolled' : ''} px-4 md:px-6 py-3`}
-      >
-        <div className="max-w-6xl mx-auto flex justify-between items-center gap-2">
+    <div className="product-app min-h-screen" data-page={state.status}>
+      {state.status !== 'DISCUSSING' && state.status !== 'FINISHED' ? (
+      <div className="glass-nav px-4 md:px-6 py-3">
+        <div className="max-w-6xl mx-auto flex flex-wrap justify-between items-center gap-2">
           <div className="text-base md:text-lg font-bold text-gradient-brand tracking-tight whitespace-nowrap shrink-0">
             LGD Simulator
           </div>
-          <div className="flex items-center gap-1.5 md:gap-4 min-w-0">
+          <div className="flex flex-wrap items-center justify-end gap-1.5 md:gap-4 min-w-0">
             {!dbAvailable && state.status !== 'IDLE' && (
-              <span className="glass-chip badge-warning text-[10px] px-2 py-0.5 whitespace-nowrap hidden sm:inline">
+              <span className="glass-chip badge-warning text-xs px-2 py-0.5 whitespace-nowrap hidden sm:inline">
                 本地模式（未配置数据库）
               </span>
             )}
@@ -238,14 +199,15 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div style={{ height: navHeight }} aria-hidden="true" />
+      ) : (
+        <div className="home-control"><button type="button" onClick={restart} className="glass-btn-ghost">← 退回首页</button></div>
+      )}
 
       <div
-        className={state.status === 'DISCUSSING' ? 'p-2 md:p-3' : 'p-4 md:p-6'}
-        style={state.status === 'DISCUSSING' ? { height: `calc(100dvh - ${navHeight}px)` } : undefined}
+        className={state.status === 'DISCUSSING' ? 'product-content room-content' : 'product-content p-4 md:p-6'}
       >
         {state.status === 'IDLE' && (
-          <div className="max-w-3xl mx-auto">
+          <div className="max-w-5xl mx-auto">
             <SetupForm onStart={startPreparation} />
           </div>
         )}
@@ -268,7 +230,7 @@ const App: React.FC = () => {
               cameraEnabled={cameraEnabled}
               facingMode={facingMode}
               inputMode={inputMode}
-              degradedReason={degradedReason}
+              degradedReason={dbAvailable ? degradedReason : [degradedReason, '本地模式（未配置数据库）'].filter(Boolean).join('；')}
               keyPoints={setup?.keyPoints ?? []}
               onFinish={finishSimulation}
               onExit={restart}
@@ -281,12 +243,12 @@ const App: React.FC = () => {
             {isLoadingFeedback ? (
               <div className="flex flex-col items-center justify-center py-20">
                 <div className="relative">
-                  <div className="w-20 h-20 border-4 border-white/10 border-t-brand rounded-full animate-spin" />
+                  <div className="w-20 h-20 border-4 border-line border-t-brand rounded-full animate-spin" />
                   <div className="absolute inset-0 flex items-center justify-center text-gradient-brand font-bold">AI</div>
                 </div>
                 <div className="mt-6 text-center">
-                  <h3 className="text-xl font-bold text-white">{REPORT_LOADING_TEXT}</h3>
-                  <p className="text-white/60 mt-2">{REPORT_LOADING_HINT}（目标 ≤20 秒）</p>
+                  <h3 className="text-xl font-bold text-ink">{REPORT_LOADING_TEXT}</h3>
+                  <p className="text-muted mt-2">{REPORT_LOADING_HINT}（目标 ≤20 秒）</p>
                 </div>
               </div>
             ) : (

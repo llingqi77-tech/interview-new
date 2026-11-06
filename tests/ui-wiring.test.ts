@@ -74,8 +74,9 @@ test('US-13: SetupForm 四种题型 + 系统自动生成 3 位候选人 + 必填
   assert.ok(/LGD_TOPIC_TYPES\.map/.test(form), '未渲染四种题型');
   assert.ok(/generateCandidates/.test(form), '未按岗位自动生成候选人');
   assert.ok(/validateSetup/.test(form), '未做必填校验');
-  assert.ok(/AI 生成题目/.test(form), '缺少 AI 生成题目入口');
-  assert.ok(/开始设备检测/.test(form), '缺少进入设备检测入口');
+  assert.ok(/type="radio"/.test(form), '题型应为单选');
+  assert.ok(!/<textarea|<select/.test(form), '进入前不应显示题目');
+  assert.ok(/进入面试房间/.test(form), '缺少进入房间入口');
 });
 
 test('5.2: 目标流程状态机（IDLE → PREPARING → DISCUSSING → FINISHED）', () => {

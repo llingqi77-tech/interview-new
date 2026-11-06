@@ -224,13 +224,13 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
 
   const statusIcon = (s: CheckStatus) =>
     s === 'passed' ? (
-      <span className="glass-chip badge-success text-[10px] px-2 py-0.5">通过</span>
+      <span className="glass-chip badge-success text-xs px-2 py-0.5">通过</span>
     ) : s === 'failed' ? (
-      <span className="glass-chip badge-danger text-[10px] px-2 py-0.5">失败</span>
+      <span className="glass-chip badge-danger text-xs px-2 py-0.5">失败</span>
     ) : s === 'skipped' ? (
-      <span className="glass-chip text-[10px] px-2 py-0.5 text-white/40">已跳过</span>
+      <span className="glass-chip text-xs px-2 py-0.5 text-muted">已跳过</span>
     ) : s === 'checking' ? (
-      <span className="glass-chip text-[10px] px-2 py-0.5 text-white/60">
+      <span className="glass-chip text-xs px-2 py-0.5 text-muted">
         <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" aria-hidden="true">
           <circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4" fill="none" stroke="currentColor"></circle>
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
@@ -238,26 +238,26 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
         检测中
       </span>
     ) : (
-      <span className="glass-chip text-[10px] px-2 py-0.5 text-white/30">等待</span>
+      <span className="glass-chip text-xs px-2 py-0.5 text-muted">等待</span>
     );
 
   // 步骤条行卡状态：当前检测项微放大 + 渐变描边；完成项沉降
   const rowClass = (s: CheckStatus) =>
     `glass-card p-4 flex items-center justify-between gap-3 transition-all duration-300 ${
-      s === 'checking' ? 'glass-selected scale-[1.01]' : s === 'passed' ? 'opacity-60' : ''
+      s === 'checking' ? 'glass-selected' : s === 'passed' ? '' : ''
     }`;
 
   const stepNum = (n: number) => (
-    <span className="glass-chip w-7 h-7 justify-center text-[11px] tabular-nums text-white/50 shrink-0">{n}</span>
+    <span className="glass-chip w-7 h-7 justify-center text-xs tabular-nums text-muted shrink-0">{n}</span>
   );
   return (
-    <div className="w-full max-w-2xl mx-auto glass-panel overflow-hidden">
+    <div className="device-page w-full max-w-2xl mx-auto glass-panel overflow-hidden">
       {/* 头部（替换原实色块） */}
       <div className="px-8 pt-10 pb-4 text-center">
-        <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight">
+        <h1 className="text-3xl md:text-4xl font-black text-ink tracking-tight">
           设备<span className="text-gradient-brand">检测</span>与准备
         </h1>
-        <p className="text-white/60 text-sm mt-3">按提示逐项检测，随时可以跳过摄像头进入纯语音模式</p>
+        <p className="text-muted text-sm mt-3">按提示逐项检测，随时可以跳过摄像头进入纯语音模式</p>
       </div>
 
       <div className="stagger px-8 pb-8 space-y-4">
@@ -266,13 +266,13 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
           <div className="flex items-start gap-3">
             {stepNum(1)}
             <div>
-              <div className="font-semibold text-white flex items-center gap-2">🎤 麦克风 {statusIcon(micStatus)}</div>
-              <div className="text-xs text-white/60 mt-1">
+              <div className="font-semibold text-ink flex items-center gap-2">麦克风 {statusIcon(micStatus)}</div>
+              <div className="text-xs text-muted mt-1">
                 {micStatus === 'failed' ? '未获得麦克风权限，将使用纯文字模式' : '检测权限与输入音量（实时音量条）'}
               </div>
               {micStatus === 'passed' && (
-                <div className="mt-2 h-2 w-48 bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-400/80 transition-all" style={{ width: `${micLevel}%` }} />
+                <div className="mt-2 h-2 w-48 bg-subtle rounded-full overflow-hidden">
+                  <div className="h-full bg-success transition-all" style={{ width: `${micLevel}%` }} />
                 </div>
               )}
             </div>
@@ -291,13 +291,13 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
           <div className="flex items-start gap-3 flex-1">
             {stepNum(2)}
             <div className="flex-1">
-              <div className="font-semibold text-white flex items-center gap-2">📷 摄像头 {statusIcon(cameraStatus)}</div>
-              <div className="text-xs text-white/60 mt-1">
+              <div className="font-semibold text-ink flex items-center gap-2">摄像头 {statusIcon(cameraStatus)}</div>
+              <div className="text-xs text-muted mt-1">
                 {cameraStatus === 'skipped' ? '已跳过摄像头（纯语音模式）' : '检测权限与画面预览'}
               </div>
               {cameraStatus === 'passed' && (
                 /* 预览玻璃框：detected 后渐变描边 + 外发光 */
-                <div className="mt-3 inline-block rounded-3xl p-[2px] bg-gradient-to-br from-brand to-brand-soft shadow-[0_0_24px_rgba(91,108,255,0.40)]">
+                <div className="mt-3 inline-block rounded-3xl p-[2px] bg-subtle">
                   <video ref={videoRef} muted playsInline className="w-40 h-28 bg-black rounded-[calc(1.5rem-2px)] object-cover" />
                 </div>
               )}
@@ -327,8 +327,8 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
           <div className="flex items-start gap-3">
             {stepNum(3)}
             <div>
-              <div className="font-semibold text-white flex items-center gap-2">🔊 扬声器 {statusIcon(speakerStatus)}</div>
-              <div className="text-xs text-white/60 mt-1">播放测试音，确认能听到 AI 发言</div>
+              <div className="font-semibold text-ink flex items-center gap-2">扬声器 {statusIcon(speakerStatus)}</div>
+              <div className="text-xs text-muted mt-1">播放测试音，确认能听到 AI 发言</div>
             </div>
           </div>
           <button
@@ -345,9 +345,9 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
           <div className="flex items-start gap-3">
             {stepNum(4)}
             <div>
-              <div className="font-semibold text-white flex items-center gap-2">🌐 网络 {statusIcon(networkStatus)}</div>
-              <div className="text-xs text-white/60 mt-1">{networkDetail || '检测连通性与 API 探测延迟'}</div>
-              {networkStatus === 'failed' && <div className="text-xs text-amber-300/80 mt-1">弱网将自动降级为纯语音/纯文字模式</div>}
+              <div className="font-semibold text-ink flex items-center gap-2">网络 {statusIcon(networkStatus)}</div>
+              <div className="text-xs text-muted mt-1">{networkDetail || '检测连通性与 API 探测延迟'}</div>
+              {networkStatus === 'failed' && <div className="text-xs text-warning mt-1">弱网将自动降级为纯语音/纯文字模式</div>}
             </div>
           </div>
         </div>
@@ -355,8 +355,8 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
         {/* 移动端专项提示：amber 玻璃横幅 */}
         {isMobile && (
           <div className="badge-warning rounded-2xl p-4 space-y-1">
-            <div className="text-sm font-semibold text-amber-300">📱 移动端提示</div>
-            <ul className="text-xs text-amber-200/70 list-disc pl-4 space-y-0.5">
+            <div className="text-sm font-semibold text-warning">移动端提示</div>
+            <ul className="text-xs text-warning list-disc pl-4 space-y-0.5">
               {orientationHint && <li>{orientationHint}</li>}
               {MOBILE_HINTS.map((h) => (
                 <li key={h}>{h}</li>
@@ -379,9 +379,9 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
             >
               <span className="glass-toggle-knob" />
             </button>
-            <span className="text-sm text-white/70">
+            <span className="text-sm text-muted">
               {CONSENT_SUMMARY}
-              <span className="block mt-1 text-white/45">
+              <span className="block mt-1 text-muted">
                 摄像头分析全部在浏览器本地完成（0 字节上传）；第三方 API（DeepSeek / StepFun）按隐私政策处理数据。
               </span>
             </span>
@@ -390,10 +390,10 @@ const DeviceCheck: React.FC<DeviceCheckProps> = ({ onReady, onBack, format = 'lg
 
         {/* 群面阶段说明（PRD 4.1.3）：阶段色圆点 */}
         <div className="glass-panel p-4">
-          <div className="text-sm font-semibold text-white/85 mb-2">
-            ⏱️ 流程预览 · {format === 'panel' ? '结构化单面' : '无领导小组讨论（倒计时驱动，到点强制切换）'}
+          <div className="text-sm font-semibold text-ink mb-2">
+            流程预览 · {format === 'panel' ? '结构化单面' : '无领导小组讨论（倒计时驱动，到点强制切换）'}
           </div>
-          <ol className="text-xs text-white/60 space-y-1.5 list-decimal pl-4">
+          <ol className="text-xs text-muted space-y-1.5 list-decimal pl-4">
             {format === 'panel' ? (
               <>
                 <li>自我介绍（1 分钟）</li>

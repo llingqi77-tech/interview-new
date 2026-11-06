@@ -172,12 +172,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
     return (
       <div key={field.key} className="space-y-1.5">
         <div className="flex items-center justify-between gap-2">
-          <label className="text-xs text-white/75 flex items-center gap-2 min-w-0">
+          <label className="text-xs text-ink flex items-center gap-2 min-w-0">
             <span className="truncate">{field.label}</span>
-            <code className="text-[10px] text-white/30 truncate">{field.key}</code>
+            <code className="text-xs text-muted truncate">{field.key}</code>
           </label>
           <span
-            className={`glass-chip text-[10px] px-2 py-0.5 shrink-0 ${
+            className={`glass-chip text-xs px-2 py-0.5 shrink-0 ${
               configured ? 'badge-success' : 'badge-warning'
             }`}
           >
@@ -185,7 +185,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           </span>
         </div>
 
-        {field.hint && <p className="text-[11px] text-white/40 leading-snug">{field.hint}</p>}
+        {field.hint && <p className="text-xs text-muted leading-snug">{field.hint}</p>}
 
         <div className="flex items-center gap-2">
           <input
@@ -201,7 +201,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
             <button
               type="button"
               onClick={() => clearDraft(field.key)}
-              className="glass-btn-ghost text-[11px] px-2 py-1 shrink-0"
+              className="glass-btn-ghost text-xs px-2 py-1 shrink-0"
               title="撤销这次修改"
             >
               撤销
@@ -210,7 +210,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
             <button
               type="button"
               onClick={() => setDraft(field.key, '')}
-              className="glass-btn-ghost text-[11px] px-2 py-1 shrink-0"
+              className="glass-btn-ghost text-xs px-2 py-1 shrink-0"
               title="清除页面配置，回落到 .env.local"
               disabled={!configured || entry?.source !== 'runtime'}
             >
@@ -220,7 +220,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
         </div>
 
         {dirty && (
-          <p className="text-[11px] text-brand/80">
+          <p className="text-xs text-brand/80">
             {value === '' ? '将清除页面配置，回落到环境变量' : '待保存'}
           </p>
         )}
@@ -239,8 +239,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
       >
         <div className="flex items-start justify-between mb-3 shrink-0">
           <div>
-            <h2 className="text-lg font-semibold text-white">服务端配置</h2>
-            <p className="text-xs text-white/50 mt-1">
+            <h2 className="text-lg font-semibold text-ink">服务端配置</h2>
+            <p className="text-xs text-muted mt-1">
               <span title={snapshot?.configFile ?? undefined}>
                 填完即生效，写入 {(snapshot?.configFile ?? '.runtime-config.json').split(/[\\/]/).pop()}，无需重启
               </span>
@@ -272,7 +272,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
               <button
                 type="button"
                 onClick={handleTokenSubmit}
-                className="glass-btn text-[11px] px-2 py-1 shrink-0"
+                className="glass-btn text-xs px-2 py-1 shrink-0"
               >
                 验证
               </button>
@@ -287,7 +287,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           <div className="glass-chip badge-success text-xs px-3 py-2 mb-3 block shrink-0">{notice}</div>
         )}
 
-        {loading && !snapshot && <p className="text-sm text-white/60 py-10 text-center">加载中…</p>}
+        {loading && !snapshot && <p className="text-sm text-muted py-10 text-center">加载中…</p>}
 
         {snapshot && (
           <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-4">
@@ -303,11 +303,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                     type="button"
                     onClick={() => setActiveGroupId(group.id)}
                     className={`text-left text-xs px-3 py-2 rounded-xl whitespace-nowrap transition-colors ${
-                      active ? 'glass-selected text-white' : 'text-white/60 hover:text-white/85'
+                      active ? 'glass-selected text-ink' : 'text-muted hover:text-ink'
                     }`}
                   >
                     {group.title}
-                    {missing > 0 && <span className="ml-1 text-[10px] text-amber-300/80">·{missing}</span>}
+                    {missing > 0 && <span className="ml-1 text-xs text-warning">·{missing}</span>}
                   </button>
                 );
               })}
@@ -316,7 +316,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
             <div className="flex-1 min-h-0 overflow-y-auto glass-scroll pr-1 pb-2 space-y-3">
               {activeGroup && (
                 <>
-                  <p className="text-[11px] text-white/45 leading-relaxed">{activeGroup.description}</p>
+                  <p className="text-xs text-muted leading-relaxed">{activeGroup.description}</p>
                   {activeGroup.fields.map(renderField)}
 
                   {activeGroup.id === 'llm' && (
@@ -331,7 +331,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                       </button>
                       {probe && (
                         <div
-                          className={`mt-2 text-[11px] px-3 py-2 rounded-xl ${
+                          className={`mt-2 text-xs px-3 py-2 rounded-xl ${
                             probe.ok ? 'badge-success' : 'badge-danger'
                           }`}
                         >
@@ -339,7 +339,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
                             <>
                               连通 · {probe.latencyMs}ms · {probe.baseUrl}
                               {probe.modelAvailable === false && (
-                                <span className="block text-amber-300/90 mt-1">
+                                <span className="block text-warning mt-1">
                                   端点可达，但模型 {probe.model} 不在返回列表里
                                 </span>
                               )}
@@ -360,8 +360,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) => {
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-white/10 shrink-0">
-          <span className="text-[11px] text-white/40">
+        <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-line shrink-0">
+          <span className="text-xs text-muted">
             {dirtyKeys.length > 0 ? `${dirtyKeys.length} 项待保存` : '密钥只存服务端，前端不持有'}
           </span>
           <div className="flex items-center gap-2">

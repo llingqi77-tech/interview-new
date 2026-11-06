@@ -170,21 +170,21 @@ const CertificateSection: React.FC<{ report: InterviewReport }> = ({ report }) =
   const busy = signing || confirming || switching;
 
   return (
-    <div className="glass-card p-5 mb-8 border-violet-400/25 bg-violet-400/[0.08]">
-      <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
+    <div className="glass-card p-5 mb-8 border-line bg-subtle">
+      <h3 className="text-lg font-bold text-ink mb-1 flex items-center gap-2">
         <span aria-hidden>⛓️</span>链上证书
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-400/15 text-violet-300 border border-violet-400/30">
+        <span className="text-xs px-1.5 py-0.5 rounded-full bg-subtle text-info border border-line">
           Monad Testnet
         </span>
       </h3>
-      <p className="text-xs text-white/50 mb-4 leading-relaxed">
+      <p className="text-xs text-muted mb-4 leading-relaxed">
         将本报告的哈希承诺铸造为不可转让证书（soulbound NFT）。任何人拿到报告原文与你的地址，
         都能复算哈希并在链上验真，证书不可转卖、不可伪造。
       </p>
 
       {!address && (
-        <div className="flex items-center justify-between gap-3 bg-white/[0.06] rounded-xl border border-white/10 px-4 py-3">
-          <span className="text-sm text-white/70">连接钱包后即可铸造本报告的链上证书</span>
+        <div className="flex items-center justify-between gap-3 bg-subtle rounded-xl border border-line px-4 py-3">
+          <span className="text-sm text-muted">连接钱包后即可铸造本报告的链上证书</span>
           <button
             onClick={identity.connect}
             className="glass-btn-primary text-sm px-3 py-1.5 shrink-0"
@@ -196,17 +196,17 @@ const CertificateSection: React.FC<{ report: InterviewReport }> = ({ report }) =
 
       {address && alreadyMinted && (
         <div className="badge-success rounded-xl px-4 py-3">
-          <div className="text-sm font-bold text-emerald-300">
+          <div className="text-sm font-bold text-success">
             ✓ 本报告已上链存证 · 证书 #{(existingTokenId as bigint).toString()}
           </div>
-          <div className="text-xs text-white/50 mt-1 font-mono">
+          <div className="text-xs text-muted mt-1 font-mono">
             reportHash: {reportHash ? shortHash(reportHash) : '—'}
           </div>
           <a
             href={explorerContractUrl()}
             target="_blank"
             rel="noreferrer"
-            className="text-xs text-violet-300 hover:text-violet-200 hover:underline mt-1 inline-block"
+            className="text-xs text-info hover:text-info hover:underline mt-1 inline-block"
           >
             在 Monad Explorer 查看合约 ↗
           </a>
@@ -214,23 +214,23 @@ const CertificateSection: React.FC<{ report: InterviewReport }> = ({ report }) =
       )}
 
       {address && !alreadyMinted && (
-        <div className="bg-white/[0.06] rounded-xl border border-white/10 px-4 py-3 space-y-3">
+        <div className="bg-subtle rounded-xl border border-line px-4 py-3 space-y-3">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-white/70">铸造费用</span>
-            <span className="font-mono font-bold text-white tabular-nums">
+            <span className="text-muted">铸造费用</span>
+            <span className="font-mono font-bold text-ink tabular-nums">
               {priceUnknown ? '读取中…' : `${formatEther(mintPrice as bigint)} MON`}
             </span>
           </div>
           {balance !== undefined && (
             <div className="flex items-center justify-between text-xs">
-              <span className="text-white/40">钱包余额</span>
-              <span className={`font-mono tabular-nums ${insufficient ? 'text-red-300 font-bold' : 'text-white/60'}`}>
+              <span className="text-muted">钱包余额</span>
+              <span className={`font-mono tabular-nums ${insufficient ? 'text-danger font-bold' : 'text-muted'}`}>
                 {Number(formatEther(balance.value)).toFixed(4)} MON
               </span>
             </div>
           )}
           {reportHash && (
-            <div className="text-[10px] text-white/40 font-mono">reportHash: {shortHash(reportHash)}</div>
+            <div className="text-xs text-muted font-mono">reportHash: {shortHash(reportHash)}</div>
           )}
 
           {insufficient && (
@@ -246,7 +246,7 @@ const CertificateSection: React.FC<{ report: InterviewReport }> = ({ report }) =
             <button
               onClick={() => switchChain({ chainId: MONAD_TESTNET_CHAIN_ID })}
               disabled={busy}
-              className="w-full py-2.5 rounded-xl bg-amber-400/20 border border-amber-400/40 text-amber-200 text-sm font-bold hover:bg-amber-400/30 disabled:opacity-50 transition-colors"
+              className="w-full py-2.5 rounded-xl bg-subtle border border-line text-warning text-sm font-bold hover:bg-subtle disabled:opacity-50 transition-colors"
             >
               {switching ? '切换中…' : '切换到 Monad Testnet'}
             </button>
@@ -288,26 +288,26 @@ const CertificateSection: React.FC<{ report: InterviewReport }> = ({ report }) =
 
       {address && isEnvioConfigured() && indexed && indexed.length > 0 && (
         <div className="mt-4">
-          <div className="text-xs font-bold text-white/50 mb-2">我的链上证书（{indexed.length}）</div>
+          <div className="text-xs font-bold text-muted mb-2">我的链上证书（{indexed.length}）</div>
           <div className="space-y-1.5">
             {indexed.map((c) => (
               <div
                 key={c.id}
-                className="flex items-center justify-between text-xs bg-white/[0.06] border border-white/10 rounded-lg px-3 py-2"
+                className="flex items-center justify-between text-xs bg-subtle border border-line rounded-lg px-3 py-2"
               >
-                <span className="font-bold text-white/80">证书 #{c.tokenId}</span>
-                <span className="font-mono text-white/40">{shortHash(c.reportHash)}</span>
+                <span className="font-bold text-ink">证书 #{c.tokenId}</span>
+                <span className="font-mono text-muted">{shortHash(c.reportHash)}</span>
                 {c.txHash ? (
                   <a
                     href={explorerTxUrl(c.txHash)}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-violet-300 hover:text-violet-200 hover:underline"
+                    className="text-info hover:text-info hover:underline"
                   >
                     交易 ↗
                   </a>
                 ) : (
-                  <span className="text-white/25">—</span>
+                  <span className="text-muted">—</span>
                 )}
               </div>
             ))}

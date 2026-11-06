@@ -1,697 +1,132 @@
 @import "tailwindcss";
 
-/* ============================================================
-   Liquid Glass 设计令牌（Tailwind v4 @theme）
-   品牌渐变单向：#5B6CFF → #A78BFA（全站唯一渐变方向）
-   ============================================================ */
+/* Ramp-inspired product tokens. Existing glass-* hooks remain for component compatibility. */
 @theme {
-  /* 深色基底 */
-  --color-night-950: #07090F;
-  --color-night-900: #0D1220;
-
-  /* 品牌色 */
-  --color-brand: #5B6CFF;
-  --color-brand-soft: #A78BFA;
-
-  /* 极光光斑 */
-  --color-aurora-cyan: #22D3EE;
-  --color-aurora-magenta: #E879F9;
-
-  /* 四阶段色：审题 cyan / 个人陈述 violet / 自由讨论 blue / 总结 amber */
-  --color-stage-think: #22D3EE;
-  --color-stage-speak: #A78BFA;
-  --color-stage-discuss: #60A5FA;
-  --color-stage-summary: #FBBF24;
-
-  /* 中文字体栈 */
-  --font-sans: "PingFang SC", "HarmonicOS Sans SC", "Microsoft YaHei", Inter, system-ui, -apple-system, sans-serif;
-
-  /* 液态弹性曲线 */
-  --ease-liquid: cubic-bezier(0.175, 0.885, 0.32, 2.2);
+  --color-canvas: #f4f2f0;
+  --color-surface: #ffffff;
+  --color-subtle: #f8f7f5;
+  --color-ink: #0c0a08;
+  --color-muted: #65625e;
+  --color-line: #e2dfd9;
+  --color-strong: #938b7f;
+  --color-brand: #0c0a08;
+  --color-brand-soft: #65625e;
+  --color-accent: #e4f222;
+  --color-success: #216346;
+  --color-warning: #865a11;
+  --color-danger: #b3322e;
+  --color-info: #285f82;
+  --color-stage-think: #285f82;
+  --color-stage-speak: #65625e;
+  --color-stage-discuss: #216346;
+  --color-stage-summary: #865a11;
+  --font-sans: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
 }
-
-/* ============================================================
-   基础
-   ============================================================ */
 @layer base {
-  html {
-    color-scheme: dark;
-  }
-
-  body {
-    font-family: "PingFang SC", "HarmonicOS Sans SC", "Microsoft YaHei", Inter, system-ui, -apple-system, sans-serif;
-    background-color: #07090F;
-    color: rgb(255 255 255 / 0.92);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
-  ::selection {
-    background: rgb(91 108 255 / 0.40);
-  }
-
-  /* 玻璃上交互元素的焦点描边（可访问性） */
-  :where(a, button, input, select, textarea, [role="button"], [tabindex]):focus-visible {
-    outline: 2px solid rgb(91 108 255 / 0.70);
-    outline-offset: 2px;
-  }
+  html {color-scheme:light;background:var(--color-canvas)}
+  body {margin:0;color:var(--color-ink);font-family:var(--font-sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  button,input,select,textarea {font:inherit}
+  button,a,input,select,textarea {-webkit-tap-highlight-color:transparent}
+  button:not(:disabled),[role=button]{cursor:pointer}
+  button:disabled{cursor:not-allowed}
+  input,select,textarea{min-width:0}
+  ::selection{background:#e4f222;color:#0c0a08}
+  :where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--color-info);outline-offset:3px}
+  h1,h2,h3{line-height:1.4;letter-spacing:-.025em}
+  p,li{overflow-wrap:anywhere}
 }
-
 @layer components {
-
-/* ============================================================
-   背景系统：深色径向渐变 + 极光光斑（玻璃感的依托）
-   光斑动画只用 transform/opacity，blur 静态，保帧率
-   ============================================================ */
-.aurora-stage {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  overflow: hidden;
-  background: radial-gradient(120% 100% at 50% 0%, #0D1220 0%, #07090F 62%);
-}
-
-.aurora-blob {
-  position: absolute;
-  border-radius: 9999px;
-  pointer-events: none;
-  will-change: transform;
-}
-
-.aurora-blob-a {
-  width: 44vw;
-  height: 44vw;
-  min-width: 320px;
-  min-height: 320px;
-  left: -8vw;
-  top: -12vh;
-  background: #5B6CFF;
-  opacity: 0.35;
-  filter: blur(100px);
-  animation: aurora-drift-a 52s ease-in-out infinite alternate;
-}
-
-.aurora-blob-b {
-  width: 36vw;
-  height: 36vw;
-  min-width: 280px;
-  min-height: 280px;
-  right: -6vw;
-  top: 24vh;
-  background: #22D3EE;
-  opacity: 0.28;
-  filter: blur(110px);
-  animation: aurora-drift-b 58s ease-in-out infinite alternate;
-}
-
-.aurora-blob-c {
-  width: 30vw;
-  height: 30vw;
-  min-width: 240px;
-  min-height: 240px;
-  left: 30vw;
-  bottom: -16vh;
-  background: #E879F9;
-  opacity: 0.25;
-  filter: blur(120px);
-  animation: aurora-drift-c 46s ease-in-out infinite alternate;
-}
-
-@keyframes aurora-drift-a {
-  0%   { transform: translate3d(0, 0, 0) scale(1); }
-  50%  { transform: translate3d(7vw, 5vh, 0) scale(1.12); }
-  100% { transform: translate3d(-3vw, 9vh, 0) scale(0.94); }
-}
-
-@keyframes aurora-drift-b {
-  0%   { transform: translate3d(0, 0, 0) scale(1); }
-  50%  { transform: translate3d(-6vw, -5vh, 0) scale(1.08); }
-  100% { transform: translate3d(4vw, -9vh, 0) scale(1.16); }
-}
-
-@keyframes aurora-drift-c {
-  0%   { transform: translate3d(0, 0, 0) scale(1); }
-  50%  { transform: translate3d(-7vw, -6vh, 0) scale(1.10); }
-  100% { transform: translate3d(6vw, -3vh, 0) scale(0.92); }
-}
-
-/* ============================================================
-   玻璃材质四要素（每层必备）：
-   backdrop-blur / 半透明白底 / 1px 白边 / 深度阴影 + 顶部内高光
-   层级透明度：面板 6% → 卡片 8% → 浮层/dock 12% → 交互态 15-20%
-   ============================================================ */
-
-/* 页面面板（white/6） */
-.glass-panel {
-  position: relative;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  background: rgb(255 255 255 / 0.06);
-  border: 1px solid rgb(255 255 255 / 0.12);
-  border-radius: 1.5rem;
-  box-shadow: 0 8px 32px rgb(0 0 0 / 0.37), inset 0 1px 0 rgb(255 255 255 / 0.12);
-}
-
-/* 卡片（white/8，rounded-3xl） */
-.glass-card {
-  position: relative;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  background: rgb(255 255 255 / 0.08);
-  border: 1px solid rgb(255 255 255 / 0.15);
-  border-radius: 1.5rem;
-  box-shadow: 0 8px 32px rgb(0 0 0 / 0.37), inset 0 1px 0 rgb(255 255 255 / 0.15);
-}
-
-/* 卡片 hover：上浮 + 背景增量 + 阴影加深 */
-.glass-card-hover {
-  transition: transform 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
-}
-.glass-card-hover:hover {
-  transform: translateY(-2px);
-  background-color: rgb(255 255 255 / 0.12);
-  border-color: rgb(255 255 255 / 0.20);
-  box-shadow: 0 12px 40px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.18);
-}
-
-/* 悬浮 dock / 弹窗（white/12，rounded-[2rem]） */
-.glass-dock {
-  position: relative;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  background: rgb(255 255 255 / 0.12);
-  border: 1px solid rgb(255 255 255 / 0.18);
-  border-radius: 2rem;
-  box-shadow: 0 12px 40px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.18);
-}
-
-/* 芯片 / 标签（rounded-full；不加 backdrop-filter——chip 总嵌在玻璃面内，
-   blur 不可见却占同屏滤镜预算，12 张角色卡场景会爆 ~12 面上限） */
-.glass-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  background: rgb(255 255 255 / 0.08);
-  border: 1px solid rgb(255 255 255 / 0.15);
-  border-radius: 9999px;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
-}
-
-/* 准备页模式和人数用白色明暗区分，不生成渐变外框或伪元素。 */
-.setup-choice {
-  position: relative;
-}
-.setup-choice-selected {
-  background-color: rgb(255 255 255 / 0.14) !important;
-  border-color: rgb(255 255 255 / 0.35);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18);
-}
-
-/* 选中态：渐变描边 + bg white/12 + 顶部内高光（角色卡、步骤条当前项） */
-.glass-selected {
-  background-color: rgb(255 255 255 / 0.12) !important;
-  border-color: rgb(255 255 255 / 0.22);
-  box-shadow: 0 8px 32px rgb(0 0 0 / 0.37), inset 0 1px 0 rgb(255 255 255 / 0.22);
-}
-.glass-selected::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1.5px;
-  background: linear-gradient(135deg, #5B6CFF, #A78BFA);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-  pointer-events: none;
-}
-
-/* 液态回弹（不带位移滤镜的轻量版：角色卡 hover 等场景） */
-.bounce-liquid {
-  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 2.2), background-color 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
-}
-.bounce-liquid:hover {
-  transform: scale(1.03);
-}
-.bounce-liquid:active {
-  transform: scale(0.97);
-}
-
-/* 渐变描边环（通用：用户气泡等），不带背景/阴影，可叠在任意半透明面上 */
-.gradient-ring {
-  position: relative;
-}
-.gradient-ring::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1.5px;
-  background: linear-gradient(135deg, #5B6CFF, #A78BFA);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-  pointer-events: none;
-}
-
-/* 折叠面板（旧四维评价）：隐藏原生三角，展开时 fade-up */
-details.glass-details > summary {
-  list-style: none;
-}
-details.glass-details > summary::-webkit-details-marker {
-  display: none;
-}
-details.glass-details[open] > .glass-details-body {
-  animation: fade-up 0.3s ease both;
-}
-
-/* 吸顶导航玻璃条（white/6 → 滚动 white/10） */
-.glass-nav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 50;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  background: rgb(255 255 255 / 0.06);
-  border-bottom: 1px solid rgb(255 255 255 / 0.10);
-  transition: background-color 0.3s ease;
-}
-.glass-nav-scrolled {
-  /* 滚动后必须压暗：否则页面内容从半透明导航下面透上来，看起来像重叠 */
-  background: rgb(12 14 28 / 0.92);
-  border-bottom-color: rgb(255 255 255 / 0.14);
-}
-
-/* ============================================================
-   按钮族（rounded-2xl = 1rem）
-   ============================================================ */
-.glass-btn,
-.glass-btn-primary,
-.glass-btn-ghost,
-.glass-btn-danger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  border-radius: 1rem;
-  border: 1px solid rgb(255 255 255 / 0.15);
-  color: #fff;
-  cursor: pointer;
-  user-select: none;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  transition: transform 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease, filter 0.3s ease;
-}
-.glass-btn:disabled,
-.glass-btn-primary:disabled,
-.glass-btn-ghost:disabled,
-.glass-btn-danger:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* 标准玻璃按钮（white/8 → hover 15%） */
-.glass-btn {
-  background: rgb(255 255 255 / 0.08);
-  box-shadow: 0 8px 32px rgb(0 0 0 / 0.37), inset 0 1px 0 rgb(255 255 255 / 0.15);
-}
-.glass-btn:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.15);
-  transform: translateY(-1px);
-}
-.glass-btn:active:not(:disabled) {
-  transform: translateY(0) scale(0.98);
-}
-
-/* 主 CTA：品牌渐变微光（蓝→紫单向） */
-.glass-btn-primary {
-  background: linear-gradient(135deg, rgb(91 108 255 / 0.42), rgb(167 139 250 / 0.30));
-  border-color: rgb(139 143 255 / 0.45);
-  box-shadow:
-    0 8px 32px rgb(0 0 0 / 0.37),
-    0 0 24px rgb(91 108 255 / 0.35),
-    inset 0 1px 0 rgb(255 255 255 / 0.22);
-}
-.glass-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgb(91 108 255 / 0.55), rgb(167 139 250 / 0.40));
-  box-shadow:
-    0 10px 36px rgb(0 0 0 / 0.42),
-    0 0 36px rgb(91 108 255 / 0.50),
-    inset 0 1px 0 rgb(255 255 255 / 0.28);
-  transform: translateY(-1px);
-}
-.glass-btn-primary:active:not(:disabled) {
-  transform: translateY(0) scale(0.98);
-}
-
-/* 幽灵按钮（导航、次级操作） */
-.glass-btn-ghost {
-  background: rgb(255 255 255 / 0.04);
-  border-color: rgb(255 255 255 / 0.12);
-  box-shadow: none;
-}
-.glass-btn-ghost:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.10);
-  border-color: rgb(255 255 255 / 0.20);
-}
-
-/* 危险玻璃 ghost（删除、退出） */
-.glass-btn-danger {
-  background: rgb(239 68 68 / 0.10);
-  border-color: rgb(248 113 113 / 0.30);
-  color: #FCA5A5;
-  box-shadow: none;
-}
-.glass-btn-danger:hover:not(:disabled) {
-  background: rgb(239 68 68 / 0.20);
-  border-color: rgb(248 113 113 / 0.45);
-}
-
-/* ============================================================
-   液态折射层（仅：主 CTA / 倒计时环 / 当前发言人形象框）
-   弹性曲线 cubic-bezier(0.175, 0.885, 0.32, 2.2)，0.4s
-   不支持 SVG 位移滤镜时退化为四要素玻璃
-   ============================================================ */
-.liquid {
-  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 2.2);
-}
-.liquid:hover {
-  transform: scale(1.03);
-}
-.liquid:active {
-  transform: scale(0.97);
-}
-.liquid .liquid-content {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: inherit;
-  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 2.2);
-}
-.liquid:hover .liquid-content {
-  transform: scale(0.95);
-}
-
-@supports ((backdrop-filter: url("#glass-distortion")) or (filter: url("#glass-distortion"))) {
-  .liquid {
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
-    filter: url(#glass-distortion);
-  }
-}
-
-/* ============================================================
-   当前发言人形象框：2px 渐变描边 + 外发光呼吸
-   ============================================================ */
-.speaking-frame {
-  position: relative;
-  animation: speaking-glow 2.6s ease-in-out infinite;
-}
-.speaking-frame::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 2px;
-  background: linear-gradient(135deg, #5B6CFF, #A78BFA);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-  pointer-events: none;
-}
-@keyframes speaking-glow {
-  0%, 100% { box-shadow: 0 0 10px rgb(91 108 255 / 0.25); }
-  50%      { box-shadow: 0 0 24px rgb(91 108 255 / 0.50); }
-}
-
-/* ============================================================
-   文字与徽章
-   ============================================================ */
-
-/* 品牌渐变字（唯一渐变方向：蓝 → 紫） */
-.text-gradient-brand {
-  background: linear-gradient(90deg, #5B6CFF, #A78BFA);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-}
-
-/* 语义徽章（玻璃化） */
-.badge-success {
-  background: rgb(52 211 153 / 0.15);
-  border: 1px solid rgb(52 211 153 / 0.30);
-  color: #6EE7B7;
-}
-.badge-warning {
-  background: rgb(251 191 36 / 0.15);
-  border: 1px solid rgb(251 191 36 / 0.30);
-  color: #FCD34D;
-}
-.badge-danger {
-  background: rgb(248 113 113 / 0.15);
-  border: 1px solid rgb(248 113 113 / 0.30);
-  color: #FCA5A5;
-}
-
-/* ============================================================
-   表单：玻璃输入框 / 玻璃开关
-   ============================================================ */
-.glass-input {
-  width: 100%;
-  background: rgb(255 255 255 / 0.05);
-  border: 1px solid rgb(255 255 255 / 0.10);
-  border-radius: 1rem;
-  color: #fff;
-  outline: none;
-  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
-}
-.glass-input::placeholder {
-  color: rgb(255 255 255 / 0.30);
-}
-.glass-input:focus {
-  border-color: rgb(255 255 255 / 0.30);
-  background: rgb(255 255 255 / 0.08);
-  box-shadow: 0 0 0 3px rgb(91 108 255 / 0.18);
-}
-
-.glass-toggle {
-  position: relative;
-  width: 3rem;
-  height: 1.625rem;
-  flex: none;
-  border-radius: 9999px;
-  background: rgb(255 255 255 / 0.10);
-  border: 1px solid rgb(255 255 255 / 0.20);
-  cursor: pointer;
-  transition: background-color 0.25s ease, border-color 0.25s ease;
-}
-.glass-toggle[data-on="true"] {
-  background: rgb(59 130 246 / 0.30);
-  border-color: rgb(96 165 250 / 0.30);
-}
-.glass-toggle .glass-toggle-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 1.25rem;
-  height: 1.25rem;
-  border-radius: 9999px;
-  background: rgb(255 255 255 / 0.85);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.60), 0 2px 6px rgb(0 0 0 / 0.40);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.4);
-}
-.glass-toggle[data-on="true"] .glass-toggle-knob {
-  transform: translateX(1.375rem);
-}
-
-/* ============================================================
-   弹窗
-   ============================================================ */
-.glass-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgb(0 0 0 / 0.72);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  animation: glass-fade-in 0.2s ease both;
-  /* 独立层叠上下文：避免子元素 backdrop-filter 被父级吃掉 */
-  isolation: isolate;
-}
-.glass-modal {
-  position: relative;
-  /* 弹窗必须不透明：父级 backdrop-filter 会吃掉子级的 backdrop-filter，
-     半透明底会让背后页面文字透上来，形成重叠 */
-  background: linear-gradient(180deg, rgb(38 42 68 / 0.98) 0%, rgb(20 22 40 / 0.99) 100%);
-  border: 1px solid rgb(255 255 255 / 0.18);
-  border-radius: 2rem;
-  box-shadow: 0 24px 80px rgb(0 0 0 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.18);
-  animation: glass-modal-pop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.2) both;
-}
-@keyframes glass-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes glass-modal-pop {
-  from { opacity: 0; transform: scale(0.96); }
-  to   { opacity: 1; transform: scale(1); }
-}
-
-/* ============================================================
-   入场动效：staggered fade-up（0.05s 逐项延迟）
-   ============================================================ */
-@keyframes fade-up {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.fade-up {
-  animation: fade-up 0.5s ease both;
-}
-.stagger > * {
-  animation: fade-up 0.5s ease both;
-}
-.stagger > *:nth-child(1)  { animation-delay: 0s; }
-.stagger > *:nth-child(2)  { animation-delay: 0.05s; }
-.stagger > *:nth-child(3)  { animation-delay: 0.10s; }
-.stagger > *:nth-child(4)  { animation-delay: 0.15s; }
-.stagger > *:nth-child(5)  { animation-delay: 0.20s; }
-.stagger > *:nth-child(6)  { animation-delay: 0.25s; }
-.stagger > *:nth-child(7)  { animation-delay: 0.30s; }
-.stagger > *:nth-child(8)  { animation-delay: 0.35s; }
-.stagger > *:nth-child(9)  { animation-delay: 0.40s; }
-.stagger > *:nth-child(10) { animation-delay: 0.45s; }
-.stagger > *:nth-child(11) { animation-delay: 0.50s; }
-.stagger > *:nth-child(12) { animation-delay: 0.55s; }
-
-/* ============================================================
-   打字中指示器（保留，玻璃场景用 white/60）
-   ============================================================ */
-.typing-indicator span {
-  display: inline-block;
-  width: 4px;
-  height: 4px;
-  background-color: currentColor;
-  border-radius: 50%;
-  margin-right: 2px;
-  animation: bounce 1.4s infinite ease-in-out both;
-}
-
-.typing-indicator span:nth-child(1) {
-  animation-delay: -0.32s;
-}
-
-.typing-indicator span:nth-child(2) {
-  animation-delay: -0.16s;
-}
-
-@keyframes bounce {
-  0%, 80%, 100% {
-    transform: scale(0);
-  }
-  40% {
-    transform: scale(1);
-  }
-}
-
-/* ============================================================
-   滚动条隐藏（保留）
-   ============================================================ */
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-/* 房间滚动区细滚动条（深色适配） */
-.glass-scroll::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-.glass-scroll::-webkit-scrollbar-thumb {
-  background: rgb(255 255 255 / 0.15);
-  border-radius: 9999px;
-}
-.glass-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-/* ============================================================
-   移动端降级（<md）：去掉 backdrop-filter，面板改实色
-   保证低中端机 30fps 硬指标
-   ============================================================ */
-@media (max-width: 767.98px) {
-  .glass-panel,
-  .glass-card,
-  .glass-dock,
-  .glass-chip,
-  .glass-btn,
-  .glass-btn-primary,
-  .glass-btn-ghost,
-  .glass-btn-danger,
-  .glass-modal,
-  .glass-nav,
-  .glass-toggle,
-  .glass-toggle .glass-toggle-knob {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-  .glass-panel,
-  .glass-card,
-  .glass-dock {
-    background: rgb(15 23 42 / 0.80);
-    border-color: rgb(255 255 255 / 0.10);
-  }
-  /* 弹窗在移动端同样必须不透明（否则背后文字透上来） */
-  .glass-modal {
-    background: linear-gradient(180deg, rgb(30 34 58 / 0.99) 0%, rgb(15 18 34 / 1) 100%);
-    border-color: rgb(255 255 255 / 0.10);
-  }
-  /* 移动端关掉位移滤镜，发言人呼吸/光斑保留（transform/paint 级开销） */
-  .liquid {
-    filter: none;
-  }
-}
-
-/* ============================================================
-   prefers-reduced-motion：关闭所有漂浮 / 呼吸 / 位移动画
-   ============================================================ */
-@media (prefers-reduced-motion: reduce) {
-  .aurora-blob,
-  .speaking-frame,
-  .stagger > *,
-  .fade-up,
-  .glass-modal,
-  .glass-modal-backdrop,
-  .typing-indicator span {
-    animation: none !important;
-  }
-  .liquid,
-  .liquid .liquid-content,
-  .bounce-liquid,
-  .glass-card-hover,
-  .glass-btn,
-  .glass-btn-primary,
-  .glass-btn-ghost,
-  .glass-btn-danger,
-  .glass-toggle,
-  .glass-toggle .glass-toggle-knob,
-  .glass-nav {
-    transition: none !important;
-  }
-}
-}
+  .aurora-stage,.aurora-blob{display:none}
+  .glass-panel,.glass-card,.glass-dock,.glass-modal{position:relative;background:var(--color-surface);border:1px solid var(--color-line);border-radius:14px;box-shadow:none}
+  .glass-dock,.glass-modal{box-shadow:0 16px 48px #0c0a081a}
+  .glass-chip{display:inline-flex;align-items:center;gap:6px;background:var(--color-subtle);color:var(--color-muted);border:0;border-radius:6px}
+  .glass-selected,[data-active=true].glass-btn,[data-active=true].glass-chip{background:#eeece7;border-color:var(--color-strong);color:var(--color-ink)}
+  .glass-nav{position:sticky;top:0;z-index:30;background:var(--color-canvas);border-bottom:1px solid var(--color-line)}
+  .glass-btn,.glass-btn-primary,.glass-btn-ghost,.glass-btn-danger{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:8px;min-height:40px;font-weight:500;line-height:1.4;transition:background-color .15s,border-color .15s;color:var(--color-ink);white-space:normal}
+  .glass-btn{background:white;border:1px solid var(--color-strong);padding:8px 14px}
+  .glass-btn:hover:not(:disabled){background:var(--color-subtle)}
+  .glass-btn-primary{background:var(--color-accent);border:1px solid transparent;padding:10px 18px;color:var(--color-ink)}
+  .glass-btn-primary:hover:not(:disabled){background:#d3df1c}
+  .glass-btn-ghost{background:transparent;border:1px solid transparent;padding:8px 12px}
+  .glass-btn-ghost:hover:not(:disabled){background:#eeece7}
+  .glass-btn-danger{background:#fbeceb;color:var(--color-danger);border:1px solid transparent;padding:8px 14px}
+  .glass-btn-danger:hover:not(:disabled){background:#f5d9d7}
+  :is(.glass-btn,.glass-btn-primary,.glass-btn-ghost,.glass-btn-danger):disabled{opacity:.5}
+  .glass-input{border:1px solid var(--color-strong);background:white;border-radius:8px;color:var(--color-ink);min-height:44px;padding:10px 12px;line-height:1.5}
+  .glass-input::placeholder{color:#716b63}
+  .glass-input:focus{border-color:var(--color-info)}
+  .glass-toggle{position:relative;flex-shrink:0;width:44px;height:26px;background:#a39c92;border:1px solid #938b7f;border-radius:99px;transition:background .15s}
+  .glass-toggle[data-on=true]{background:var(--color-ink);border-color:var(--color-ink)}
+  .glass-toggle-knob{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:white;transition:transform .15s}
+  .glass-toggle[data-on=true] .glass-toggle-knob{transform:translateX(18px)}
+  .glass-modal-backdrop{position:fixed;inset:0;z-index:100;background:#0c0a0866;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
+  .glass-modal{max-height:calc(100dvh - 40px);overflow-y:auto;width:100%;margin:auto}
+  .text-gradient-brand{color:var(--color-ink);background:none}
+  .badge-success{background:#eaf4ed;color:var(--color-success)}
+  .badge-warning{background:#fbf1d9;color:var(--color-warning)}
+  .badge-danger{background:#fbeceb;color:var(--color-danger)}
+  .speaking-frame{border:1px solid var(--color-success)}
+  .gradient-ring::before,.speaking-frame::before{display:none}
+  .typing-indicator{display:inline-flex;gap:4px}
+  .typing-indicator span{width:5px;height:5px;background:var(--color-muted);border-radius:50%;animation:pulse 1s infinite alternate}
+  .glass-scroll{scrollbar-width:thin;scrollbar-color:#b7b0a6 transparent}
+  .scrollbar-hide{scrollbar-width:none}
+  .scrollbar-hide::-webkit-scrollbar{display:none}
+}
+/* Configuration: compact form, no nested frames. */
+.setup-page{max-width:960px;margin:32px auto 48px}
+.setup-heading{margin-bottom:32px}.setup-heading h1{font-size:30px;font-weight:600}
+.setup-fields{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.field-label{display:block;font-size:14px;font-weight:500;margin-bottom:8px}
+.setup-section{margin-top:28px;padding-top:24px;border-top:1px solid var(--color-line);min-width:0}
+.setup-section h2,.setup-section legend{font-size:17px;font-weight:600;margin-bottom:16px}
+.topic-section{padding-top:0}.topic-section legend{padding-top:24px;width:100%}
+.mode-options{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.mode-option{position:relative;text-align:left;padding:20px 44px 20px 20px;border:1px solid var(--color-line);border-radius:10px;background:white}
+.mode-title{display:block;font-size:17px;font-weight:600}.mode-hint{display:block;font-size:13px;color:var(--color-muted);margin-top:6px;line-height:1.7}
+.mode-option[data-active=true]{border-color:var(--color-ink);background:#eeece7}
+.choice-dot{position:absolute;right:18px;top:24px;width:16px;height:16px;border:1px solid var(--color-strong);border-radius:50%}
+[data-active=true]>.choice-dot{border:5px solid var(--color-ink)}
+.topic-radios{display:grid;grid-template-columns:repeat(2,max-content);gap:4px 40px;justify-content:start}
+.topic-radio{display:flex;align-items:center;gap:10px;min-height:44px;font-size:15px;cursor:pointer}
+.topic-radio input{appearance:auto;width:20px;height:20px;margin:0;accent-color:var(--color-ink)}
+.topic-radio:has(input:checked){font-weight:600}
+.setup-submit{display:flex;justify-content:center;margin-top:28px}.setup-submit>.glass-btn-primary{width:min(100%,360px);min-height:60px;font-size:18px;border-radius:10px}
+.panel-tools{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px;color:var(--color-muted)}.panel-match{margin-left:auto}
+.persona-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.persona-option{position:relative;display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:4px;border:1px solid var(--color-line);background:white;border-radius:10px;padding:18px;min-width:0}
+.persona-option[data-active=true]{border-color:var(--color-ink);background:#eeece7}.persona-option strong{font-size:16px}.persona-option>span:not(.persona-avatar):not(.persona-check),.persona-option small{font-size:12px;color:var(--color-muted)}
+.persona-avatar{display:flex;width:36px;height:36px;align-items:center;justify-content:center;background:#deded4;border-radius:50%;margin-bottom:6px;font-size:15px}
+.persona-check{position:absolute;right:16px;top:16px;font-weight:600}.setup-errors{color:var(--color-danger);margin-top:16px}
+/* Room: one calm conversation surface with an unboxed reference rail. */
+.product-app[data-page=DISCUSSING]{height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+.home-control{padding:8px 20px;flex:none}.home-control button{font-size:13px;min-height:36px}
+.product-content.room-content{flex:1;min-height:0;padding:0 20px 16px}
+.interview-room{min-height:0}.room-phase{flex:none;background:transparent;border:0;border-bottom:1px solid var(--color-line);border-radius:0}
+.room-workspace{gap:24px}.conversation-column{background:white;border:1px solid var(--color-line);border-radius:12px;padding:20px;overflow:hidden}
+.room-transcript{padding:4px 8px 16px 0;scrollbar-width:thin}.room-transcript>[data-side]{margin-bottom:20px}
+.room-transcript [data-side=left] .glass-panel{border:0;border-radius:0;background:transparent;padding:2px 0}
+.room-transcript [data-side=right] .glass-panel{border:0;background:#f4f2f0;border-radius:8px}
+.room-transcript [data-side=center] .glass-chip{background:transparent;color:var(--color-muted)}
+.room-transcript [data-emotion]{display:none}
+.room-sidebar{min-width:0;overflow-x:hidden;scrollbar-width:thin}.room-sidebar>.glass-panel{background:transparent;border:0;border-radius:0;padding:16px 0}.room-sidebar>.glass-panel+.glass-panel{border-top:1px solid var(--color-line)}
+.room-sidebar p,.room-sidebar li{font-size:14px;line-height:1.8}.room-sidebar [data-speaking=true]{background:#eaf4ed;color:var(--color-success)}
+.room-toolbar{border:0;border-top:1px solid var(--color-line);border-radius:0;padding:12px 0 0;background:transparent;flex:none}
+.room-speaking{background:transparent;padding:4px 0;font-size:12px;color:var(--color-muted)}
+.reading-overlay{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:24px;background:#f4f2f0e8;overflow-y:auto;border-radius:12px}
+.reading-card{width:min(100%,760px);max-height:100%;overflow-y:auto;background:white;padding:36px 40px;border:1px solid var(--color-line);border-radius:14px;box-shadow:0 16px 48px #0c0a0814}
+.reading-top{display:flex;justify-content:space-between;align-items:center;gap:16px;color:var(--color-muted);font-size:14px}.reading-top time{font-size:24px;font-variant-numeric:tabular-nums;font-weight:600;color:var(--color-ink)}
+.reading-card h2{font-size:28px;font-weight:600;margin:20px 0}.reading-question{font-size:20px;line-height:1.9;white-space:pre-wrap}.reading-note{font-size:13px;color:var(--color-muted);margin-top:24px}
+.report-page{padding:24px 0 48px}.report-hero{border:0;background:transparent;padding:8px 0 28px;border-bottom:1px solid var(--color-line);border-radius:0}
+.report-page [data-testid=dimension-row]{padding:22px;background:white;border-radius:10px}.report-page [data-testid=dimension-row] p{line-height:1.7}
+.report-page [data-testid=dimension-row] [data-testid=evidence-item]{background:var(--color-subtle);padding:10px 12px;border-radius:6px;font-size:14px;line-height:1.7;width:100%}
+.device-page{background:transparent;border:0}.device-page .glass-card,.device-page .glass-panel{border:0;border-radius:0;background:transparent;border-top:1px solid var(--color-line)}
+.device-page .glass-card.opacity-60{opacity:1}.device-page .glass-card.scale-\[1\.01\]{transform:none}
+@media(max-width:767px){
+ .setup-page{margin:16px auto 32px}.setup-heading{margin-bottom:24px}.setup-heading h1{font-size:26px}.setup-fields,.mode-options{grid-template-columns:1fr;gap:16px}.setup-section{margin-top:24px;padding-top:20px}.persona-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.persona-option{padding:14px}.panel-tools{gap:8px}.panel-match{margin-left:0}
+ .glass-btn,.glass-btn-primary,.glass-btn-ghost,.glass-btn-danger{min-height:44px}.home-control{padding:4px 12px}.product-content.room-content{padding:0 10px 10px}.room-workspace{gap:0}.conversation-column{padding:12px}.room-toolbar{gap:4px;justify-content:center}.room-toolbar button{padding:8px;flex:1 1 auto;font-size:12px}.room-phase{padding:8px 0}.reading-overlay{padding:12px}.reading-card{padding:22px}.reading-card h2{font-size:23px;margin:16px 0}.reading-question{font-size:17px;line-height:1.85}.reading-top time{font-size:21px}
+ .glass-modal-backdrop{padding:12px}.glass-modal{max-height:calc(100dvh - 24px);margin:0}.device-page>div{padding-left:16px;padding-right:16px}.device-page .glass-card{padding:16px 0;flex-wrap:wrap}.device-page .glass-card .glass-input{width:100%}
+ .report-page{padding-top:12px}.report-hero{align-items:flex-start}.report-page [data-testid=dimension-row]{padding:18px}
+}
+@media(max-width:420px){.topic-radios{grid-template-columns:1fr;gap:0}.persona-grid{gap:8px}.room-phase .countdown-label{display:none}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
