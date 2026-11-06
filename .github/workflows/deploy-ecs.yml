@@ -43,8 +43,24 @@ jobs:
       image: ${{ steps.meta.outputs.image }}
       image_pull: ${{ steps.meta.outputs.image_pull }}
       tag: ${{ steps.meta.outputs.tag }}
+      deploy_enabled: ${{ steps.gate.outputs.enabled }}
     steps:
       - uses: actions/checkout@v4
+
+      # 没配齐部署凭据时只构建镜像、跳过部署 —— 否则每次 push main 都会挂一个红叉
+      - name: 检查部署凭据
+        id: gate
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          if [ -n "$SSH_HOST" ] && [ -n "$SSH_USER" ] && [ -n "$SSH_PRIVATE_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=跳过 ECS 部署::未配置 SSH_HOST / SSH_USER / SSH_PRIVATE_KEY，本次只构建镜像"
+          fi
 
       - name: 计算镜像坐标
         id: meta
@@ -92,6 +108,8 @@ jobs:
   deploy:
     name: 部署到 ECS
     needs: build
+    # 凭据缺失时整个部署 job 跳过（secrets 上下文在 job 级 if 里不可用，只能靠 build 的输出传递）
+    if: needs.build.outputs.deploy_enabled == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
