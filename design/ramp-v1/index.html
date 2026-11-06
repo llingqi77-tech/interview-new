@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>LGD Simulator · UI 样稿 v1</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="review-bar">
+    <a class="review-title" href="#setup"><span class="review-dot"></span> UI 样稿 <span class="version">v1.0</span></a>
+    <nav class="review-pages" aria-label="样稿页面">
+      <button data-view="setup">练习配置</button><button data-view="room">面试房间</button><button data-view="report">评估报告</button><button data-view="system">UI 规范</button>
+    </nav>
+    <div class="review-tools"><div id="review-room-modes" class="review-room-modes hidden" aria-label="房间模式样稿"><button data-room-mode="lgd">群面</button><button data-room-mode="panel">单面</button></div><span class="demo-label">演示数据 · 不连接服务</span><button id="viewport-toggle" aria-pressed="false" title="切换为 390px 手机预览">手机预览</button></div>
+  </div>
+  <div class="preview-canvas">
+    <div id="app-frame" class="app-frame">
+      <header class="app-header">
+        <a class="brand" href="#setup"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>LGD<span class="brand-light"> Simulator</span></span></a>
+        <div class="app-header-end">
+          <span class="environment">AI 面试练习</span>
+          <button class="header-btn" data-dialog="settings">配置</button><button class="header-btn" data-dialog="privacy">隐私政策</button><button class="header-btn new-session" data-action="restart">新建练习 <span aria-hidden="true">↗</span></button>
+        </div>
+      </header>
+      <main id="main"></main>
+      <footer class="app-footer"><span>LGD Simulator</span><span>准备更充分，表达更从容。</span><button data-dialog="privacy">隐私与数据说明</button></footer>
+    </div>
+  </div>
+  <dialog id="modal"><div id="modal-content"></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="prototype.js"></script>
+</body>
+</html>

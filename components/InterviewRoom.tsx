@@ -70,13 +70,13 @@ const CountdownRing: React.FC<{ remainingMs: number; progress: number; label: st
   return (
     <div className="relative w-12 h-12 md:w-16 md:h-16 shrink-0" data-testid="countdown-ring" data-remaining={remainingMs}>
       <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
-        <circle cx="32" cy="32" r={r} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="5" />
+        <circle cx="32" cy="32" r={r} fill="none" stroke="#e2dfd9" strokeWidth="5" />
         <circle
           cx="32"
           cy="32"
           r={r}
           fill="none"
-          stroke="#22D3EE"
+          stroke="#0c0a08"
           strokeWidth="5"
           strokeLinecap="round"
           strokeDasharray={c}
@@ -84,30 +84,8 @@ const CountdownRing: React.FC<{ remainingMs: number; progress: number; label: st
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-xs font-bold text-white tabular-nums">{formatCountdown(remainingMs)}</span>
-        <span className="text-[9px] text-white/45">{label}</span>
-      </div>
-    </div>
-  );
-};
-
-const TrajectoryBar: React.FC<{ trajectory: TrajectoryState }> = ({ trajectory }) => {
-  const max = Math.max(1, ...trajectory.points.map((p) => p.durationMs));
-  return (
-    <div className="glass-panel px-3 py-2" data-testid="trajectory-bar">
-      <div className="flex items-center justify-between text-[10px] text-white/45 mb-1">
-        <span>发言轨迹（最近 {trajectory.points.length} 次）</span>
-        <span>发言总数 {trajectory.total}</span>
-      </div>
-      <div className="flex items-end gap-[2px] h-6">
-        {trajectory.points.map((p, i) => (
-          <span
-            key={`${p.speakerId}-${i}`}
-            title={`${p.speakerName} ${Math.round(p.durationMs / 1000)}s`}
-            className={`w-1.5 rounded-sm ${p.isUser ? 'bg-cyan-300' : 'bg-violet-300/70'}`}
-            style={{ height: `${Math.max(12, (p.durationMs / max) * 100)}%` }}
-          />
-        ))}
+        <span className="text-xs font-bold text-ink tabular-nums">{formatCountdown(remainingMs)}</span>
+        <span className="text-xs text-muted">{label}</span>
       </div>
     </div>
   );
@@ -120,8 +98,8 @@ const Bubble: React.FC<{ msg: Message; streaming: boolean }> = ({ msg, streaming
     // 引导语字幕：居中展示，但保留播报人姓名与时间，便于回溯是谁在串场
     return (
       <div className="flex justify-center" data-side="center">
-        <div className="glass-chip text-[11px] text-white/60 px-3 py-1.5 max-w-[92%] md:max-w-[86%] text-center">
-          <span className="text-white/40 mr-1.5 whitespace-nowrap" data-time={msg.startMs ?? msg.timestamp}>
+        <div className="glass-chip text-xs text-muted px-3 py-1.5 max-w-[92%] md:max-w-[86%] text-center">
+          <span className="text-muted mr-1.5 whitespace-nowrap" data-time={msg.startMs ?? msg.timestamp}>
             {msg.senderName}
           </span>
           {msg.content}
@@ -132,17 +110,17 @@ const Bubble: React.FC<{ msg: Message; streaming: boolean }> = ({ msg, streaming
   return (
     <div className={`flex gap-2 ${isUser ? 'justify-end' : 'justify-start'}`} data-side={isUser ? 'right' : 'left'}>
       {!isUser && (
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-400/70 to-cyan-400/70 shrink-0 flex items-center justify-center text-[11px] font-bold text-white">
+        <div className="w-8 h-8 rounded-full bg-subtle shrink-0 flex items-center justify-center text-xs font-bold text-ink">
           {msg.senderName.slice(0, 1)}
         </div>
       )}
       <div className={`max-w-[76%] ${isUser ? 'text-right' : 'text-left'}`}>
-        <div className="flex items-center gap-2 text-[10px] text-white/40 mb-1" data-time={msg.startMs ?? msg.timestamp}>
+        <div className="flex items-center gap-2 text-xs text-muted mb-1" data-time={msg.startMs ?? msg.timestamp}>
           {isUser ? (
-            <span className="font-semibold text-cyan-200">我</span>
+            <span className="font-semibold text-info">我</span>
           ) : (
             <>
-              <span className="font-semibold text-white/70">{msg.senderName}</span>
+              <span className="font-semibold text-muted">{msg.senderName}</span>
               <span data-emotion={msg.emotion ?? 'neutral'} className="glass-chip px-1.5 py-0.5">
                 {msg.emotion ?? 'neutral'}
               </span>
@@ -151,7 +129,7 @@ const Bubble: React.FC<{ msg: Message; streaming: boolean }> = ({ msg, streaming
           <span>{formatCountdown(msg.startMs ?? 0)}</span>
         </div>
         <div
-          className={`glass-panel px-3 py-2 text-sm text-white/85 whitespace-pre-wrap ${isUser ? 'bg-cyan-400/10' : ''}`}
+          className={`glass-panel px-3 py-2 text-sm text-ink whitespace-pre-wrap ${isUser ? 'bg-subtle' : ''}`}
           data-streaming={streaming && !isUser ? 'true' : 'false'}
         >
           {msg.content}
@@ -164,7 +142,7 @@ const Bubble: React.FC<{ msg: Message; streaming: boolean }> = ({ msg, streaming
 const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
   const {
     format, phase, topic, keyPoints, messages, roles, interviewers,
-    speakingRight, trajectory, inputMode, thinking, streaming,
+    speakingRight, inputMode, thinking, streaming,
     muted, cameraOn, textInputOpen, degraded, speakingId, canSkipAiIntro, listening, partialText,
     onSend, onBargeIn, onToggleMute, onToggleCamera, onToggleTextInput, onEnd, onViewTopic, onSkipAiIntro,
   } = props;
@@ -182,35 +160,35 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
   };
 
   return (
-    <div className="h-full flex flex-col gap-2">
+    <div className="interview-room h-full flex flex-col gap-2">
       {/* 顶部状态栏 */}
-      <div className="glass-panel px-2 md:px-4 py-2 flex flex-wrap items-center gap-2 md:gap-4">
+      <div className="room-phase glass-panel px-2 md:px-4 py-2 flex flex-wrap items-center gap-2 md:gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-xs md:text-sm font-bold text-white whitespace-nowrap">{phase.label}</span>
-            <span className="text-[10px] text-white/40 whitespace-nowrap">
+            <span className="text-xs md:text-sm font-bold text-ink whitespace-nowrap">{phase.label}</span>
+            <span className="text-xs text-muted whitespace-nowrap">
               第 {phase.index + 1}/{phase.total} 阶段
             </span>
           </div>
           <div
-            className="mt-1 h-1.5 w-full max-w-40 rounded-full bg-white/10 overflow-hidden"
+            className="mt-1 h-1.5 w-full max-w-40 rounded-full bg-subtle overflow-hidden"
             data-testid="phase-progress"
           >
-            <div className="h-full bg-gradient-to-r from-cyan-400 to-violet-400" style={{ width: `${Math.round(phase.progress * 100)}%` }} />
+            <div className="h-full bg-ink" style={{ width: `${Math.round(phase.progress * 100)}%` }} />
           </div>
         </div>
         <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
           <button
             type="button"
             onClick={onViewTopic}
-            className="glass-btn-ghost text-[11px] md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
+            className="hidden md:inline-flex glass-btn-ghost text-xs px-3 py-1.5 whitespace-nowrap"
           >
             查看题目
           </button>
           <button
             type="button"
             onClick={() => setMobilePanelOpen((v) => !v)}
-            className="md:hidden glass-btn-ghost text-[11px] px-2 py-1.5 whitespace-nowrap"
+            className="md:hidden glass-btn-ghost text-xs px-2 py-1.5 whitespace-nowrap"
             data-testid="mobile-panel-toggle"
           >
             题目/角色
@@ -219,7 +197,7 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
           <button
             type="button"
             onClick={onEnd}
-            className="glass-btn-ghost text-[11px] md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
+            className="glass-btn-ghost text-xs md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
           >
             结束
           </button>
@@ -230,15 +208,15 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
       {mobilePanelOpen && (
         <div className="md:hidden glass-panel p-3 space-y-2" data-testid="mobile-panel">
           <div>
-            <div className="text-xs font-semibold text-white/80 mb-1">题目</div>
-            <p className="text-[11px] text-white/60 leading-relaxed">
+            <div className="text-xs font-semibold text-ink mb-1">题目</div>
+            <p className="text-xs text-muted leading-relaxed">
               {topic || '面试题目将在你完成自我介绍后，按目标岗位即时生成（STAR 结构化）'}
             </p>
           </div>
           {keyPoints.length > 0 && (
             <div>
-              <div className="text-xs font-semibold text-white/80 mb-1">讨论要点</div>
-              <ul className="text-[11px] text-white/60 space-y-1">
+              <div className="text-xs font-semibold text-ink mb-1">讨论要点</div>
+              <ul className="text-xs text-muted space-y-1">
                 {keyPoints.map((k) => (
                   <li key={k}>· {k}</li>
                 ))}
@@ -251,50 +229,58 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
                 <span
                   key={r.id}
                   data-speaking={activeId === r.id ? 'true' : 'false'}
-                  className={`glass-chip text-[10px] px-2 py-0.5 ${activeId === r.id ? 'ring-1 ring-cyan-300/60 text-white' : 'text-white/60'}`}
+                  className={`glass-chip text-xs px-2 py-0.5 ${activeId === r.id ? 'outline outline-1 outline-strong text-ink' : 'text-muted'}`}
                 >
                   {r.name}
                 </span>
               ))}
             {interviewers.map((i) => (
-              <span key={i.id} className="glass-chip text-[10px] px-2 py-0.5 text-white/60">
+              <span key={i.id} className="glass-chip text-xs px-2 py-0.5 text-muted">
                 {i.name} · {i.archetype}
               </span>
             ))}
           </div>
-          <p className="text-[11px] text-white/45">{phase.description}</p>
+          <p className="text-xs text-muted">{phase.description}</p>
         </div>
       )}
 
       {degraded && (
-        <div className="badge-warning rounded-xl px-3 py-1.5 text-xs text-amber-200" data-testid="degraded-banner">
+        <div className="badge-warning rounded-xl px-3 py-1.5 text-xs text-warning" data-testid="degraded-banner">
           部分能力降级中：{degraded}
         </div>
       )}
 
-      <div className="flex-1 min-h-0 flex gap-2">
+      <div className="room-workspace relative flex-1 min-h-0 flex gap-2">
+        {format === 'lgd' && phase.id === 'READING' && (
+          <section className="reading-overlay" aria-label="审题" data-testid="reading-topic">
+            <div className="reading-card">
+              <div className="reading-top"><span>审题</span><time aria-label="审题剩余时间">{formatCountdown(phase.remainingMs)}</time></div>
+              <h2>本场讨论题目</h2><p className="reading-question">{topic}</p>
+              <p className="reading-note">请先阅读题目，倒计时结束后自动进入自我介绍。</p>
+            </div>
+          </section>
+        )}
         {/* 字幕区 */}
-        <div className="flex-1 min-w-0 flex flex-col gap-2">
-          <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1">
+        <div className="conversation-column flex-1 min-w-0 flex flex-col gap-2" inert={format === 'lgd' && phase.id === 'READING'}>
+          <div className="room-transcript flex-1 min-h-0 overflow-y-auto space-y-3 pr-1">
             {messages.map((m) => (
               <Bubble key={m.id} msg={m} streaming={streaming} />
             ))}
             {thinking && (
-              <div className="flex items-center gap-2 text-xs text-white/50" data-testid="thinking">
-                <span className="w-2 h-2 rounded-full bg-cyan-300 animate-pulse" />
+              <div className="flex items-center gap-2 text-xs text-muted" data-testid="thinking">
+                <span className="w-2 h-2 rounded-full bg-subtle animate-pulse" />
                 思考中
               </div>
             )}
           </div>
 
-          <TrajectoryBar trajectory={trajectory} />
 
-          <div className="glass-chip text-xs text-white/70 px-3 py-1.5" data-testid="speaking-right" data-kind={speakingRight.kind}>
+          <div className="room-speaking text-xs text-muted" data-testid="speaking-right" data-kind={speakingRight.kind}>
             {speakingRight.label}
           </div>
 
           {listening && partialText && (
-            <div className="glass-chip text-xs text-cyan-200 px-3 py-1.5" data-testid="asr-partial">
+            <div className="glass-chip text-xs text-info px-3 py-1.5" data-testid="asr-partial">
               识别中：{partialText}
             </div>
           )}
@@ -317,12 +303,12 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
           )}
 
           {/* 底部工具条 */}
-          <div className="glass-panel px-2 md:px-3 py-2 flex flex-wrap items-center gap-1.5 md:gap-2">
+          <div className="room-toolbar glass-panel px-2 md:px-3 py-2 flex flex-wrap items-center gap-1.5 md:gap-2">
             <button
               type="button"
               onClick={onToggleMute}
               data-active={muted}
-              className="glass-btn-ghost text-[11px] md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
+              className="glass-btn-ghost text-xs md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
             >
               {muted ? '取消静音' : '静音'}
             </button>
@@ -330,7 +316,7 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
               type="button"
               onClick={onToggleCamera}
               data-active={cameraOn}
-              className="glass-btn-ghost text-[11px] md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
+              className="glass-btn-ghost text-xs md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
             >
               {cameraOn ? '关闭摄像头' : '打开摄像头'}
             </button>
@@ -338,7 +324,7 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
               type="button"
               onClick={onBargeIn}
               data-listening={listening ? 'true' : 'false'}
-              className={`text-[11px] md:text-xs px-3 md:px-4 py-1.5 whitespace-nowrap ${
+              className={`text-xs md:text-xs px-3 md:px-4 py-1.5 whitespace-nowrap ${
                 listening ? 'glass-btn-danger' : 'glass-btn-primary'
               }`}
               title={INPUT_MODE_LABELS[inputMode]}
@@ -348,7 +334,7 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
             <button
               type="button"
               onClick={onBargeIn}
-              className="glass-btn-ghost text-[11px] md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
+              className="glass-btn-ghost text-xs md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
             >
               打断 AI
             </button>
@@ -356,25 +342,25 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
               type="button"
               onClick={onToggleTextInput}
               data-active={textInputOpen}
-              className="glass-btn-ghost text-[11px] md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
+              className="glass-btn-ghost text-xs md:text-xs px-2 md:px-3 py-1.5 whitespace-nowrap"
             >
               文字输入
             </button>
-            <span className="hidden md:inline text-[10px] text-white/35 ml-auto">{INPUT_MODE_LABELS[inputMode]}</span>
+            <span className="hidden md:inline text-xs text-muted ml-auto">{INPUT_MODE_LABELS[inputMode]}</span>
           </div>
         </div>
 
         {/* 侧边栏 */}
-        <aside className="hidden md:flex md:w-72 shrink-0 flex-col gap-2 overflow-y-auto">
+        <aside className="room-sidebar hidden md:flex md:w-72 shrink-0 flex-col gap-2 overflow-y-auto" inert={format === 'lgd' && phase.id === 'READING'}>
           <div className="glass-panel p-3">
-            <div className="text-xs font-semibold text-white/80 mb-1">题目</div>
-            <p className="text-[11px] text-white/60 leading-relaxed">
+            <div className="text-xs font-semibold text-ink mb-1">题目</div>
+            <p className="text-xs text-muted leading-relaxed">
               {topic || '面试题目将在你完成自我介绍后，按目标岗位即时生成（STAR 结构化）'}
             </p>
             {keyPoints.length > 0 && (
               <>
-                <div className="text-xs font-semibold text-white/80 mt-3 mb-1">讨论要点</div>
-                <ul className="text-[11px] text-white/60 space-y-1">
+                <div className="text-xs font-semibold text-ink mt-3 mb-1">讨论要点</div>
+                <ul className="text-xs text-muted space-y-1">
                   {keyPoints.map((k) => (
                     <li key={k}>· {k}</li>
                   ))}
@@ -384,7 +370,7 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
           </div>
 
           <div className="glass-panel p-3">
-            <div className="text-xs font-semibold text-white/80 mb-2">
+            <div className="text-xs font-semibold text-ink mb-2">
               {format === 'panel' ? '面试官' : '角色卡'}
             </div>
             <div className="space-y-1.5">
@@ -393,34 +379,34 @@ const InterviewRoom: React.FC<InterviewRoomProps> = (props) => {
                 <div
                   key={r.id}
                   data-speaking={activeId === r.id ? 'true' : 'false'}
-                  className={`flex items-center gap-2 rounded-lg px-2 py-1 text-[11px] ${
-                    activeId === r.id ? 'bg-cyan-400/15 text-white' : 'text-white/60'
+                  className={`flex items-center gap-2 rounded-lg px-2 py-1 text-xs ${
+                    activeId === r.id ? 'bg-subtle text-ink' : 'text-muted'
                   }`}
                 >
-                  <span className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-400/60 to-cyan-400/60 flex items-center justify-center text-[9px] font-bold text-white">
+                  <span className="w-5 h-5 rounded-full bg-subtle flex items-center justify-center text-xs font-bold text-ink">
                     {r.name.slice(0, 1)}
                   </span>
                   <span>{r.name}</span>
-                  <span className="text-white/30">{r.background?.major ?? r.industry}</span>
+                  <span className="text-muted">{r.background?.major ?? r.industry}</span>
                 </div>
               ))}
               {interviewers.map((i) => (
-                <div key={i.id} className="flex items-center gap-2 rounded-lg px-2 py-1 text-[11px] text-white/60">
-                  <span className="w-5 h-5 rounded-full bg-gradient-to-br from-amber-300/60 to-rose-400/60 flex items-center justify-center text-[9px] font-bold text-white">
+                <div key={i.id} className="flex items-center gap-2 rounded-lg px-2 py-1 text-xs text-muted">
+                  <span className="w-5 h-5 rounded-full bg-subtle flex items-center justify-center text-xs font-bold text-ink">
                     {i.name.slice(0, 1)}
                   </span>
                   <span>{i.name}</span>
-                  <span className="text-white/30">{i.archetype}</span>
+                  <span className="text-muted">{i.archetype}</span>
                 </div>
               ))}
             </div>
           </div>
 
           <div className="glass-panel p-3">
-            <div className="text-xs font-semibold text-white/80 mb-1">阶段说明</div>
-            <p className="text-[11px] text-white/60 leading-relaxed">{phase.description}</p>
+            <div className="text-xs font-semibold text-ink mb-1">阶段说明</div>
+            <p className="text-xs text-muted leading-relaxed">{phase.description}</p>
             {canSkipAiIntro && onSkipAiIntro && (
-              <button type="button" onClick={onSkipAiIntro} className="glass-btn-ghost text-[11px] px-2 py-1 mt-2 w-full">
+              <button type="button" onClick={onSkipAiIntro} className="glass-btn-ghost text-xs px-2 py-1 mt-2 w-full">
                 跳过 AI 候选人自我介绍
               </button>
             )}

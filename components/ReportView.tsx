@@ -49,7 +49,7 @@ const ScoreRing: React.FC<{ score: number; band: string }> = ({ score, band }) =
   return (
     <div className="relative w-40 h-40" data-testid="score-ring" data-score={score}>
       <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
-        <circle cx="60" cy="60" r={RING_RADIUS} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="10" />
+        <circle cx="60" cy="60" r={RING_RADIUS} fill="none" stroke="#e2dfd9" strokeWidth="10" />
         <circle
           cx="60"
           cy="60"
@@ -63,14 +63,14 @@ const ScoreRing: React.FC<{ score: number; band: string }> = ({ score, band }) =
         />
         <defs>
           <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#22D3EE" />
-            <stop offset="100%" stopColor="#A78BFA" />
+            <stop offset="0%" stopColor="#0c0a08" />
+            <stop offset="100%" stopColor="#0c0a08" />
           </linearGradient>
         </defs>
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-4xl font-bold text-white">{score}</span>
-        <span className="text-xs text-white/60 mt-1">{band}</span>
+        <span className="text-4xl font-bold text-ink">{score}</span>
+        <span className="text-xs text-muted mt-1">{band}</span>
       </div>
     </div>
   );
@@ -89,7 +89,7 @@ const EvidenceList: React.FC<{ items: Evidence[]; onLocate?: (i: number) => void
             onClick={() => {
               if (typeof ev.message_index === 'number') onLocate?.(ev.message_index);
             }}
-            className="text-left text-xs text-white/70 hover:text-white transition-colors"
+            className="text-left text-xs text-muted hover:text-ink transition-colors"
           >
             <span className="text-brand mr-2">[{formatTimestamp(ev.timestamp_ms)}]</span>
             <span>「{ev.content}」</span>
@@ -110,32 +110,32 @@ const DimensionRow: React.FC<{
   return (
     <div className="glass-panel p-4" data-testid="dimension-row" data-dimension={id}>
       <div className="flex items-baseline justify-between gap-3">
-        <div className="flex items-baseline gap-2">
-          <span className="font-semibold text-white">{DIMENSION_LABELS[id]}</span>
-          <span className="text-[11px] text-white/40">权重 {weight}%</span>
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span className="font-semibold text-ink">{DIMENSION_LABELS[id]}</span>
+          <span className="text-xs text-muted">权重 {weight}%</span>
         </div>
-        <span className="text-sm text-white/80">
+        <span className="shrink-0 text-sm text-ink">
           {disabled ? VISUAL_NOT_ENABLED_TEXT : `${dim.score} / ${dim.max}`}
         </span>
       </div>
-      <div className="mt-2 h-2 rounded-full bg-white/10 overflow-hidden" data-testid="dimension-bar">
+      <div className="mt-2 h-2 rounded-full bg-subtle overflow-hidden" data-testid="dimension-bar">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-400"
+          className="h-full rounded-full bg-ink"
           style={{ width: `${disabled ? 0 : dim.score}%` }}
         />
       </div>
-      <p className="mt-2 text-[11px] text-white/45">{DIMENSION_CRITERIA[id]}</p>
-      <p className="text-[11px] text-white/30">数据依据：{DIMENSION_DATA_SOURCES[id]}</p>
+      <p className="mt-2 text-xs text-muted">{DIMENSION_CRITERIA[id]}</p>
+      <p className="text-xs text-muted">数据依据：{DIMENSION_DATA_SOURCES[id]}</p>
       {dim.metrics && Object.keys(dim.metrics).length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {Object.entries(dim.metrics).map(([k, v]) => (
-            <span key={k} className="glass-chip text-[10px] px-2 py-0.5" data-testid="metric-tag">
+            <span key={k} className="glass-chip text-xs px-2 py-0.5" data-testid="metric-tag">
               {k} {String(v)}
             </span>
           ))}
         </div>
       )}
-      {dim.note && <p className="mt-2 text-[11px] text-amber-200/70">{dim.note}</p>}
+      {dim.note && <p className="mt-2 text-xs text-warning">{dim.note}</p>}
       <EvidenceList items={dim.evidence} onLocate={onLocate} />
     </div>
   );
@@ -157,8 +157,8 @@ const ReportView: React.FC<ReportViewProps> = ({ report, error, onRetry, onResta
   if (!report) {
     return (
       <div className="glass-panel p-8 text-center">
-        <h2 className="text-xl font-bold text-red-300 mb-3">评估报告生成失败</h2>
-        <p className="text-white/60 mb-6">{error || '请检查网络后重试'}</p>
+        <h2 className="text-xl font-bold text-danger mb-3">评估报告生成失败</h2>
+        <p className="text-muted mb-6">{error || '请检查网络后重试'}</p>
         <div className="flex items-center justify-center gap-3">
           {onRetry && (
             <button type="button" onClick={onRetry} className="glass-btn-primary px-5 py-2">
@@ -176,13 +176,13 @@ const ReportView: React.FC<ReportViewProps> = ({ report, error, onRetry, onResta
   const order = dimensionOrder(report.format ?? 'lgd');
 
   return (
-    <div className="space-y-5">
-      <div className="glass-panel p-6 flex flex-col md:flex-row items-center gap-6">
+    <div className="report-page space-y-5">
+      <div className="report-hero glass-panel p-6 flex flex-col md:flex-row items-center gap-6">
         <ScoreRing score={report.overall_score} band={report.band} />
         <div className="flex-1">
-          <h2 className="text-lg font-bold text-white">面试评估报告</h2>
-          {report.core_focus && <p className="text-sm text-white/60 mt-1">{report.core_focus}</p>}
-          {report.band_advice && <p className="text-sm text-white/70 mt-2">{report.band_advice}</p>}
+          <h2 className="text-lg font-bold text-ink">面试评估报告</h2>
+          {report.core_focus && <p className="text-sm text-muted mt-1">{report.core_focus}</p>}
+          {report.band_advice && <p className="text-sm text-muted mt-2">{report.band_advice}</p>}
           <div className="flex flex-wrap gap-2 mt-4">
             <button type="button" onClick={onRestart} className="glass-btn-primary text-sm px-4 py-1.5">
               {REPORT_ACTIONS.restart}
@@ -214,17 +214,17 @@ const ReportView: React.FC<ReportViewProps> = ({ report, error, onRetry, onResta
           role="presentation"
         >
           <div className="glass-modal max-w-lg w-full p-5" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-            <h3 className="font-bold text-white mb-2">定位到原话</h3>
+            <h3 className="font-bold text-ink mb-2">定位到原话</h3>
             {locatedView.message ? (
               <div className="space-y-2">
                 {locatedView.context.map((m, i) => (
                   <div
                     key={`${m.id}-${i}`}
                     className={`text-sm rounded-lg px-3 py-2 ${
-                      m === locatedView.message ? 'bg-cyan-400/15 text-white' : 'text-white/55'
+                      m === locatedView.message ? 'bg-subtle text-ink' : 'text-muted'
                     }`}
                   >
-                    <span className="text-[10px] text-white/40 mr-2">
+                    <span className="text-xs text-muted mr-2">
                       {m.senderId === 'user' ? '我' : m.senderName} · {formatTimestamp(m.startMs ?? m.timestamp)}
                     </span>
                     {m.content}
@@ -232,7 +232,7 @@ const ReportView: React.FC<ReportViewProps> = ({ report, error, onRetry, onResta
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-white/60">{locatedView.fallback}</p>
+              <p className="text-sm text-muted">{locatedView.fallback}</p>
             )}
             <button type="button" onClick={() => setLocated(null)} className="glass-btn mt-4 px-4 py-2 text-sm">
               关闭
@@ -248,8 +248,8 @@ const ReportView: React.FC<ReportViewProps> = ({ report, error, onRetry, onResta
       )}
 
       <div className="glass-panel p-6">
-        <h3 className="font-semibold text-white mb-3">改进建议</h3>
-        <ol className="list-decimal list-inside space-y-2 text-sm text-white/75">
+        <h3 className="font-semibold text-ink mb-3">改进建议</h3>
+        <ol className="list-decimal list-inside space-y-2 text-sm text-ink">
           {(report.suggestions ?? []).map((s, i) => (
             <li key={i}>{s}</li>
           ))}
