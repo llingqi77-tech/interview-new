@@ -54,6 +54,7 @@ const STATIC_ROUTES: Record<string, string> = {
   '/api/asr-token': 'api/asr.ts',
   '/api/realtime-token': 'api/realtime-token.ts',
   '/api/pay': 'api/pay.ts',
+  '/api/agent/interview': 'api/pay.ts',
   '/api/settings': 'api/settings.ts',
 };
 

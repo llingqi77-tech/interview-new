@@ -23,6 +23,7 @@ import {
   recordNotifyEvent,
   recordTradeStatus,
 } from './_lib/payStore.ts';
+import { handleAgentInterview } from './_lib/agentInterview.ts';
 
 /**
  * /api/pay —— 支付宝 AI 网页应用收款（Vibe Pay 基础收款能力）统一入口
@@ -52,7 +53,12 @@ function queryString(request: VercelRequest, key: string): string {
 }
 
 function actionOf(request: VercelRequest): string {
-  return queryString(request, 'action') || 'catalog';
+  const explicit = queryString(request, 'action');
+  if (explicit) return explicit;
+  // /api/agent/interview 在 Vercel 走 rewrite 带 ?action=agent-interview；
+  // 本地 dev / ECS 直连时 URL 仍是原路径，这里兜底识别
+  if (/\/api\/agent\/interview(?:[?#]|$)/.test(request.url ?? '')) return 'agent-interview';
+  return 'catalog';
 }
 
 /** 支付宝异步通知是 application/x-www-form-urlencoded；Vercel 可能已解析成对象，也可能给原始串 */
@@ -108,6 +114,11 @@ export default async function handler(request: VercelRequest, response: VercelRe
   const action = actionOf(request);
 
   try {
+    // ---------- AI 按量付费（Machine Pay）：AI 群面模拟 ----------
+    if (action === 'agent-interview') {
+      return await handleAgentInterview(request, response);
+    }
+
     // ---------- 商品目录（前端渲染购买弹窗用） ----------
     if (action === 'catalog') {
       if (request.method !== 'GET') return response.status(405).json({ error: 'Method not allowed' });

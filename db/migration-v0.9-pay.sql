@@ -49,3 +49,10 @@ CREATE INDEX IF NOT EXISTS idx_pay_notify_out_trade ON pay_notify_events(out_tra
 -- - 支付结果只认「异步通知验签通过」或「alipay.trade.query 返回 TRADE_SUCCESS/TRADE_FINISHED」
 -- - 同步回跳（return_url）参数可伪造，只用于展示，不推进状态
 -- - 发货（加次数 / 开权益）挂在 markPaidIdempotent 返回 true 的分支上，重复通知不会重复发货
+
+-- v0.9.1：AI 按量付费（Machine Pay）
+--   request_hash —— 请求体规范化哈希，同一请求 30 分钟内复用未支付订单
+--   result_json  —— 已交付结果，同一凭证重复调用直接回放，不重复烧 LLM
+ALTER TABLE pay_orders ADD COLUMN IF NOT EXISTS request_hash VARCHAR(64);
+ALTER TABLE pay_orders ADD COLUMN IF NOT EXISTS result_json  JSONB;
+CREATE INDEX IF NOT EXISTS idx_pay_orders_request ON pay_orders(request_hash, created_at DESC);

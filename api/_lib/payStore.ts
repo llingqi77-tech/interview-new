@@ -37,6 +37,10 @@ export interface PayOrder {
   refunded_amount: string;
   created_at: string;
   updated_at: string;
+  /** AI 按量付费：请求体规范化哈希（v0.9.1 新增列） */
+  request_hash: string | null;
+  /** AI 按量付费：已交付结果（v0.9.1 新增列） */
+  result_json?: unknown;
 }
 
 const DDL = `
@@ -77,6 +81,12 @@ CREATE TABLE IF NOT EXISTS pay_notify_events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pay_notify_out_trade ON pay_notify_events(out_trade_no);
+-- v0.9.1：AI 按量付费（Machine Pay）需要的两列
+--   request_hash —— 请求体规范化哈希，用于「同一请求重试复用同一订单」
+--   result_json  —— 已交付的结果，同一凭证重复调用直接回放，不重复烧 LLM
+ALTER TABLE pay_orders ADD COLUMN IF NOT EXISTS request_hash VARCHAR(64);
+ALTER TABLE pay_orders ADD COLUMN IF NOT EXISTS result_json  JSONB;
+CREATE INDEX IF NOT EXISTS idx_pay_orders_request ON pay_orders(request_hash, created_at DESC);
 `;
 
 let schemaReady: Promise<void> | null = null;
@@ -268,4 +278,65 @@ export function newOutTradeNo(prefix = 'GM'): string {
     `${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;
   const random = Math.random().toString(36).slice(2, 10).toUpperCase();
   return `${prefix}${stamp}${random}`;
+}
+
+// ---------------------------------------------------------------- AI 按量付费（Machine Pay）
+
+export interface AgentOrderInput {
+  outTradeNo: string;
+  requestHash: string;
+  sku: string;
+  subject: string;
+  totalAmount: string;
+}
+
+/**
+ * 复用窗口内同一请求的未支付订单。
+ * 智能体网络重试时不该产生第二笔订单，否则用户可能被扣两次。
+ */
+export async function findReusableAgentOrder(
+  pool: Pool,
+  requestHash: string,
+  windowMinutes = 30
+): Promise<PayOrder | null> {
+  await ensurePaySchema(pool);
+  const { rows } = await pool.query<PayOrder>(
+    `SELECT * FROM pay_orders
+      WHERE request_hash = $1
+        AND status = 'CREATED'
+        AND created_at > now() - ($2 || ' minutes')::interval
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [requestHash, String(windowMinutes)]
+  );
+  return rows[0] ?? null;
+}
+
+export async function createAgentOrder(pool: Pool, input: AgentOrderInput): Promise<PayOrder> {
+  await ensurePaySchema(pool);
+  const { rows } = await pool.query<PayOrder>(
+    `INSERT INTO pay_orders (out_trade_no, sku, subject, total_amount, request_hash)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING *`,
+    [input.outTradeNo, input.sku, input.subject, input.totalAmount, input.requestHash]
+  );
+  return rows[0];
+}
+
+/** 按商户订单号取已交付结果（同一凭证重复调用时回放，不重复跑 LLM） */
+export async function findOrderResult(pool: Pool, outTradeNo: string): Promise<unknown | null> {
+  await ensurePaySchema(pool);
+  const { rows } = await pool.query<{ result_json: unknown }>(
+    `SELECT result_json FROM pay_orders WHERE out_trade_no = $1 LIMIT 1`,
+    [outTradeNo]
+  );
+  return rows[0]?.result_json ?? null;
+}
+
+export async function saveOrderResult(pool: Pool, outTradeNo: string, result: unknown): Promise<void> {
+  await ensurePaySchema(pool);
+  await pool.query(
+    `UPDATE pay_orders SET result_json = $2::jsonb, updated_at = now() WHERE out_trade_no = $1`,
+    [outTradeNo, JSON.stringify(result)]
+  );
 }

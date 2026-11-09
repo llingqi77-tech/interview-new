@@ -18,6 +18,10 @@
       "destination": "/api/avatars"
     },
     {
+      "source": "/api/agent/interview",
+      "destination": "/api/pay?action=agent-interview"
+    },
+    {
       "source": "/api/asr-token",
       "destination": "/api/asr?__route=token"
     },

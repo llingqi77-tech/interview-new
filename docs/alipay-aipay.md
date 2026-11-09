@@ -271,3 +271,127 @@ curl http://localhost:5173/api/pay?action=catalog
 
 等工具链修好想换回 SDK 也可以，`api/_lib/alipay.ts` 是唯一需要替换的文件，
 对外接口（`buildPagePayForm` / `callGateway` / `verifyNotifySign`）保持不变即可。
+
+---
+
+# 附录：AI 按量付费（Machine Pay）
+
+上面第 1–9 章讲的是**网页应用收款**（用户在网页点「购买次数」跳收银台）。
+这一节是**第二条产品线**：让 AI 智能体调你的 API 时按次自动扣费，基于 HTTP 402。
+
+两条线互不影响，可以只开一条，也可以都开。
+
+## A.1 已注册的服务
+
+| 项 | 值 |
+| --- | --- |
+| 服务名称 | AI 群面模拟 |
+| 服务 ID | `API_67A60134AB7A4BCE` |
+| 单价 | 3.00 元/次 |
+| 状态 | 审核已通过 |
+| 接口地址 | `https://www.groupinterview.online/api/agent/interview` |
+
+## A.2 接口契约
+
+```
+POST /api/agent/interview
+Content-Type: application/json
+Payment-Proof: <base64>        # 首次请求不带，付款后带
+
+{
+  "job_title": "产品经理",
+  "company": "字节跳动",
+  "topic": "如何提升社区产品的次日留存",
+  "format": "lgd",
+  "roles": ["product_legend", "strategy_consultant", "brand_director"],
+  "duration_minutes": 25
+}
+```
+
+| 字段 | 必填 | 取值 |
+| --- | --- | --- |
+| `job_title` | 是 | 任意字符串，≤64 |
+| `company` | 是 | 任意字符串，≤64 |
+| `topic` | 否 | ≤200；不传则按岗位自动出题 |
+| `format` | 否 | `lgd`（默认）\| `panel` |
+| `roles` | 否 | 角色 id 数组，≤5 个；不传则自动配 |
+| `duration_minutes` | 否 | `15` \| `25`（默认）\| `40` |
+
+## A.3 402 时序
+
+```
+1. POST /api/agent/interview            （不带 Payment-Proof）
+   ← 402 Payment Required
+     amtPaymentLink: amtpp_v1_xxxx      ← 响应头，预下单号
+     { amount, goods_name, out_trade_no, pay_before, amt_payment_link }
+
+2. 智能体把预下单号交给支付宝，用户确认付款
+
+3. POST /api/agent/interview            （带 Payment-Proof）
+   ← 200 OK
+     { service, out_trade_no, trade_no, amount, cached, result }
+```
+
+`result` 结构：
+
+```json
+{
+  "topic": "讨论题目",
+  "roles": [{ "id": "...", "name": "...", "stance": "..." }],
+  "transcript": [{ "round": 1, "speaker": "...", "content": "..." }],
+  "report": {
+    "overall_score": 82,
+    "dimensions": [{ "name": "...", "score": 85, "evidence": "...", "advice": "..." }],
+    "highlights": ["..."],
+    "improvements": ["..."]
+  }
+}
+```
+
+## A.4 环境变量
+
+```
+ALIPAY_AGENT_SERVICE_ID=API_67A60134AB7A4BCE
+ALIPAY_AGENT_PRICE=3.00
+ALIPAY_AGENT_GOODS_NAME=AI 群面模拟
+```
+
+`ALIPAY_AGENT_PRICE` **必须与注册时填的单价完全一致**，否则用户无法支付。
+
+## A.5 安全与幂等
+
+| 机制 | 作用 |
+| --- | --- |
+| 请求体规范化哈希 | 同一请求 30 分钟内复用同一笔未支付订单，智能体重试不重复扣费 |
+| `order.request_hash` 比对 | 凭证必须对应「本次请求」的订单，防止拿便宜订单的凭证换贵资源 |
+| 金额比对 | 凭证金额必须等于服务单价 |
+| `result_json` 回放 | 同一凭证重复调用直接返回已交付结果，不重复烧 LLM |
+| `active` 校验 | 支付宝返回 `active=true` 才算付款有效 |
+
+## A.6 联调
+
+```bash
+# 1. 不带凭证 → 应该拿到 402 + amtPaymentLink
+curl -i -X POST https://www.groupinterview.online/api/agent/interview \
+  -H 'Content-Type: application/json' \
+  -d '{"job_title":"产品经理","company":"字节跳动"}'
+
+# 2. 付款后带凭证 → 应该拿到 200 + result
+curl -i -X POST https://www.groupinterview.online/api/agent/interview \
+  -H 'Content-Type: application/json' \
+  -H 'Payment-Proof: <base64>' \
+  -d '{"job_title":"产品经理","company":"字节跳动"}'
+```
+
+## A.7 代码位置
+
+| 文件 | 作用 |
+| --- | --- |
+| `api/_lib/agentPay.ts` | 402 协议：预下单、凭证验证、Payment-Proof 解析、请求指纹 |
+| `api/_lib/agentInterview.ts` | 业务实现：校验 → 402 → 验证 → 跑模拟 → 回放 |
+| `api/pay.ts` | 统一入口，`action=agent-interview` 分发（Vercel 12 函数上限） |
+| `tests/agent-pay.test.ts` | 15 条测试：配置、指纹、凭证解析、四条端点主路径 |
+
+> 为什么不是独立文件：`api/` 下每个 `.ts` 都是一个 Vercel 函数，Hobby 档上限 12 个。
+> 对外路径仍是 `/api/agent/interview`，Vercel 走 `vercel.json` rewrite，
+> 本地 dev / ECS 走路由表 + `actionOf()` 按 URL 识别。
