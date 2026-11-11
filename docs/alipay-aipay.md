@@ -31,6 +31,20 @@
 
 ## 2. 你要做的事（照着点，约 40 分钟）
 
+### 2.0 常用地址（全部实测可达）
+
+| 用途 | 地址 |
+| --- | --- |
+| 开放平台首页（登录入口） | <https://open.alipay.com/> |
+| 我的应用列表 | <https://open.alipay.com/develop/manage> |
+| 产品中心（签约） | <https://open.alipay.com/product/> |
+| 沙箱应用（联调用） | <https://open.alipay.com/develop/sandbox/app> |
+| 商家平台（查账/对账） | <https://b.alipay.com/page/portal/home> |
+| 密钥工具 | <https://miniu.alipay.com/keytool/create> |
+
+> 密钥工具如果打不开，走导航：开放平台 → 你的应用 → **开发设置** → **接口加签方式** →
+> 点「生成密钥」按钮，页面会引导你下载官方工具。这条路永远有效。
+
 ### 2.1 注册支付宝开放平台
 
 1. 打开 <https://open.alipay.com/>
@@ -51,7 +65,8 @@
 
 支付宝用 RSA2 签名。你需要一对密钥：**应用私钥**（自己留着）和 **应用公钥**（传给支付宝）。
 
-1. 下载官方工具：<https://opensearch.alipay.com/tools/keytool.htm>
+1. 打开密钥工具：<https://miniu.alipay.com/keytool/create>
+   （打不开就走导航：开放平台 → 你的应用 → 开发设置 → 接口加签方式 → 「生成密钥」）
    （页面里叫「支付宝开放平台密钥工具」，Windows / Mac 都有）
 2. 打开工具 → 选 **RSA2** → 密钥长度 **2048** → 点「生成密钥」
 3. 工具会给你两段：
